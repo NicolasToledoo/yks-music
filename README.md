@@ -85,14 +85,4 @@ yks-music uninstall          # Remove completamente do sistema
 └── config.json         # Configurações do navegador
 ```
 
-## 🌐 Navegadores Suportados
 
-- Brave
-- Chrome
-- Chromium
-- Edge
-- Firefox
-- Opera
-- Safari
-- Vivaldi
-- Whale
