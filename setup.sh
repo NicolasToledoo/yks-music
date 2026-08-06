@@ -5,6 +5,7 @@
 # Supports: Ubuntu/Debian, Arch Linux, macOS, and other Linux distros
 #
 set -euo pipefail
+umask 022
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -52,6 +53,16 @@ clear_output() {
     printf "\033[%d;1H" "$((BANNER_LINES + 1))"
 }
 
+# --- Trap de erro para limpeza ---
+cleanup_on_error() {
+    print_status ""
+    print_status "[!] Ocorreu um erro durante a instalação."
+    print_status "    Verifique o log: $SETUP_LOG"
+    print_status "[!] O .venv pode estar em estado inconsistente."
+    print_status "    Remova a pasta .venv e tente novamente."
+}
+trap cleanup_on_error ERR
+
 # --- Executa comando redirecionando output para log ---
 run_cmd() {
     local msg="$1"
@@ -73,6 +84,12 @@ detect_os() {
         echo "debian"
     elif command -v dnf &>/dev/null; then
         echo "fedora"
+    elif command -v yum &>/dev/null; then
+        echo "rhel"
+    elif command -v zypper &>/dev/null; then
+        echo "opensuse"
+    elif command -v apk &>/dev/null; then
+        echo "alpine"
     else
         echo "unknown"
     fi
@@ -96,11 +113,11 @@ select_option() {
             fi
         done
 
-        read -rsn1 key 2>/dev/null || true
+        read -rsn1 -t 60 key 2>/dev/null || true
         if [[ $key == "" ]]; then
             break
         elif [[ $key == $'\x1b' ]]; then
-            read -rsn2 key 2>/dev/null || true
+            read -rsn2 -t 10 key 2>/dev/null || true
             if [[ $key == "[A" ]]; then
                 selected=$((selected - 1))
                 [[ $selected -lt 0 ]] && selected=$last
@@ -163,11 +180,11 @@ select_option_2col() {
             fi
         done
 
-        read -rsn1 key 2>/dev/null || true
+        read -rsn1 -t 60 key 2>/dev/null || true
         if [[ $key == "" ]]; then
             break
         elif [[ $key == $'\x1b' ]]; then
-            read -rsn2 key 2>/dev/null || true
+            read -rsn2 -t 10 key 2>/dev/null || true
             col=$((selected / rows))
             row=$((selected % rows))
 
@@ -202,6 +219,18 @@ install_ffmpeg() {
             ;;
         arch)
             run_cmd "[*] Instalando ffmpeg..." sudo pacman -Sy --noconfirm ffmpeg
+            ;;
+        fedora)
+            run_cmd "[*] Instalando ffmpeg..." sudo dnf install -y ffmpeg
+            ;;
+        rhel)
+            run_cmd "[*] Instalando ffmpeg..." sudo yum install -y ffmpeg
+            ;;
+        opensuse)
+            run_cmd "[*] Instalando ffmpeg..." sudo zypper install -y ffmpeg
+            ;;
+        alpine)
+            run_cmd "[*] Instalando ffmpeg..." apk add --no-cache ffmpeg
             ;;
         macos)
             if command -v brew &>/dev/null; then
@@ -241,9 +270,24 @@ if ! command -v python3 &>/dev/null; then
         arch)
             run_cmd "[*] Instalando Python 3..." sudo pacman -Sy --noconfirm python python-pip
             ;;
+        fedora)
+            run_cmd "[*] Instalando Python 3..." sudo dnf install -y python3 python3-pip
+            ;;
+        rhel)
+            run_cmd "[*] Instalando Python 3..." sudo yum install -y python3 python3-pip
+            ;;
+        opensuse)
+            run_cmd "[*] Instalando Python 3..." sudo zypper install -y python3 python3-pip
+            ;;
+        alpine)
+            run_cmd "[*] Instalando Python 3..." apk add --no-cache python3 py3-pip
+            ;;
         macos)
-            print_status "    Instale Python 3 de https://www.python.org/downloads/"
-            exit 1
+            if ! command -v brew &>/dev/null; then
+                print_status "[*] Homebrew não encontrado. Instalando..."
+                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >> "$SETUP_LOG" 2>&1
+            fi
+            run_cmd "[*] Instalando Python 3..." brew install python
             ;;
         *)
             print_status "    Instale Python 3 manualmente."
@@ -259,7 +303,9 @@ print_status "[*] Python encontrado: $PYTHON_VERSION"
 # --- Check for previous installation ---
 if [[ -e "$HOME/.local/bin/yks-music" ]]; then
     print_status "[*] yks-music já instalado globalmente"
+    set +e
     read -rp "Deseja reinstalar? (s/N): " -n 1 REPLY
+    set -e
     echo
     if [[ ! $REPLY =~ ^[Ss]$ ]]; then
         print_status "Instalação cancelada."
@@ -285,7 +331,7 @@ fi
 source "$VENV_DIR/bin/activate"
 run_cmd "[*] Atualizando pip..." pip install --upgrade pip
 run_cmd "[*] Instalando yks-music..." pip install -e "$SCRIPT_DIR"
-run_cmd "[*] Instalando dependências..." pip install yt-dlp pyfiglet
+run_cmd "[*] Instalando dependências..." pip install yt-dlp
 
 # --- Configurar Cookie do Navegador ---
 print_status ""
@@ -313,9 +359,12 @@ printf '{"cookie_browser": "%s"}\n' "$BROWSER" > "$CONFIG_FILE"
 print_status "[✓] Navegador configurado: $BROWSER"
 
 # --- Create global shortcut ---
-run_cmd "[*] Criando atalho global..." bash -c "mkdir -p $HOME/.local/bin && cat > $HOME/.local/bin/yks-music << EOshortcut
+# Garante que ~/.local/bin está no PATH para detectar yks-music depois
+export PATH="$HOME/.local/bin:$PATH"
+
+run_cmd "[*] Criando atalho global..." bash -c "mkdir -p $HOME/.local/bin && cat > $HOME/.local/bin/yks-music << 'EOshortcut'
 #!/usr/bin/env bash
-exec \"$VENV_DIR/bin/yks-music\" \"\\\$@\"
+exec \"$VENV_DIR/bin/yks-music\" \"\$@\"
 EOshortcut
 chmod +x $HOME/.local/bin/yks-music"
 
@@ -331,8 +380,10 @@ print_status "[✓] Comando disponível: ~/.local/bin/yks-music"
 if command -v yks-music &>/dev/null; then
     print_status "[✓] Verificação: OK"
 else
-    print_status "[!] Adicione ao PATH se necessário:"
+    print_status "[!] ~/.local/bin não está no PATH"
+    print_status "    Adicione a seu ~/.bashrc ou ~/.zshrc:"
     print_status '    export PATH="$HOME/.local/bin:$PATH"'
+    print_status "    Ou execute: yks-music via $HOME/.local/bin/yks-music"
 fi
 
 print_status ""

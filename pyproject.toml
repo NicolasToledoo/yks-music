@@ -19,10 +19,5 @@ dependencies = [
 [project.scripts]
 yks-music = "yks_music.cli:main"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-]
-
 [tool.setuptools.packages.find]
 where = ["."]

@@ -25,6 +25,8 @@ Pesquise, baixe e organize sua biblioteca musical diretamente no terminal.
 ## 🔧 Instalação
 
 ```bash
+git clone https://github.com/NicolasToledoo/yks-music.git
+cd yks-music
 ./setup.sh
 ```
 
