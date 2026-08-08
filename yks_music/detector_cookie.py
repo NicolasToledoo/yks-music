@@ -1,49 +1,97 @@
 """
 Detector de cookies para navegadores suportados pelo yt-dlp.
 Detecta automaticamente os caminhos dos bancos de dados de cookies.
+
+Suporta:
+- Linux nativo (deb/rpm), Snap, Flatpak
+- macOS
+- Navegadores: Brave, Chrome, Chromium, Edge, Opera, Vivaldi, Whale, Firefox, Safari
 """
 
 import os
+import platform
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 
 
-CHROMIUM_BASE_PATHS = {
-    "brave": [
-        "~/.config/BraveSoftware/Brave-Browser",
-        "~/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser",
-    ],
-    "chrome": [
-        "~/.config/google-chrome",
-        "~/.config/google-chrome-stable",
-        "~/.var/app/com.google.Chrome/config/google-chrome",
-    ],
-    "chromium": [
-        "~/.config/chromium",
-        "~/.var/app/org.chromium.Chromium/config/chromium",
-    ],
-    "edge": [
-        "~/.config/microsoft-edge",
-        "~/.var/app/com.microsoft.Edge/config/microsoft-edge",
-    ],
-    "opera": [
-        "~/.config/opera",
-        "~/.var/app/com.opera.Opera/config/opera",
-    ],
-    "vivaldi": [
-        "~/.config/vivaldi",
-        "~/.var/app/com.vivaldi.Vivaldi/config/vivaldi",
-    ],
-    "whale": [
-        "~/.config/naver-whale",
-    ],
-}
+CHROMIUM_PATHS: Dict[str, List[str]] = {}
 
-FIREFOX_BASE_PATHS = [
+if platform.system() == "Darwin":  # macOS
+    CHROMIUM_PATHS.update({
+        "chrome": [
+            "~/Library/Application Support/Google/Chrome",
+        ],
+        "brave": [
+            "~/Library/Application Support/BraveSoftware/Brave-Browser",
+        ],
+        "edge": [
+            "~/Library/Application Support/Microsoft Edge",
+        ],
+        "chromium": [
+            "~/Library/Application Support/Chromium",
+        ],
+        "opera": [
+            "~/Library/Application Support/com.operasoftware.Opera",
+        ],
+        "vivaldi": [
+            "~/Library/Application Support/Vivaldi",
+        ],
+    })
+else:  # Linux
+    CHROMIUM_PATHS.update({
+        "brave": [
+            "~/.config/BraveSoftware/Brave-Browser",
+            "~/snap/brave/current/.config/BraveSoftware/Brave-Browser",
+            "~/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser",
+        ],
+        "chrome": [
+            "~/.config/google-chrome",
+            "~/.config/google-chrome-stable",
+            "~/snap/google-chrome/current/.config/google-chrome",
+            "~/.var/app/com.google.Chrome/config/google-chrome",
+        ],
+        "chromium": [
+            "~/.config/chromium",
+            "~/snap/chromium/common/chromium",
+            "~/.var/app/org.chromium.Chromium/config/chromium",
+        ],
+        "edge": [
+            "~/.config/microsoft-edge",
+            "~/.var/app/com.microsoft.Edge/config/microsoft-edge",
+        ],
+        "opera": [
+            "~/.config/opera",
+            "~/snap/opera/common/opera",
+            "~/.var/app/com.opera.Opera/config/opera",
+        ],
+        "vivaldi": [
+            "~/.config/vivaldi",
+            "~/.var/app/com.vivaldi.Vivaldi/config/vivaldi",
+        ],
+        "whale": [
+            "~/.config/naver-whale",
+            "~/.var/app/com.naver.Whale/config/naver-whale",
+        ],
+    })
+
+FIREFOX_PATHS_LINUX = [
     "~/.mozilla/firefox",
+    "~/snap/firefox/common/.mozilla/firefox",
     "~/.var/app/org.mozilla.firefox/.mozilla/firefox",
-    "~/.snap/firefox/common/.mozilla/firefox",
 ]
+
+FIREFOX_PATHS_MAC = [
+    "~/Library/Application Support/Firefox/Profiles",
+    "~/Library/Mozilla/Profiles",
+]
+
+FIREFOX_PATHS: List[str] = []
+if platform.system() == "Darwin":
+    FIREFOX_PATHS = FIREFOX_PATHS_MAC
+else:
+    FIREFOX_PATHS = FIREFOX_PATHS_LINUX
+
+COOKIE_FILE_NAMES = ["Cookies", "cookies.sqlite", "cookies.sqlite-wal"]
 
 
 def expand_path(path: str) -> str:
@@ -53,160 +101,195 @@ def expand_path(path: str) -> str:
     return path
 
 
-def find_chrome_cookie_path(browser: str) -> Optional[str]:
+def verify_cookie_file(directory: str, required_size: int = 0) -> bool:
+    """Verifica se um diretório de perfil contém um arquivo de cookies válido."""
+    if not os.path.isdir(directory):
+        return False
+    
+    cookie_path = Path(directory)
+    
+    # Para Chromium: procura o arquivo "Cookies" dentro de Default ou Profile X
+    for item in os.listdir(directory):
+        item_path = cookie_path / item
+        if item_path.is_file():
+            if item == "Cookies" or item.startswith("Cookies"):
+                if item_path.stat().st_size >= required_size:
+                    return True
+    
+    # Verifica subdiretórios de perfis
+    for profile_subdir in ["Default", "Profile 1", "Profile 2", "Profile 3", "Profile 4", "Profile 5"]:
+        profile_path = cookie_path / profile_subdir
+        cookie_file = profile_path / "Cookies"
+        if cookie_file.is_file():
+            try:
+                if cookie_file.stat().st_size >= required_size or required_size == 0:
+                    return True
+            except OSError:
+                pass
+    
+    return False
+
+
+def find_chrome_profile(browser: str) -> Optional[str]:
     """
-    Encontra o caminho da pasta de perfil para navegadores Chromium.
-    Retorna o caminho da pasta base (não do arquivo Cookies).
+    Encontr a caminho da pasta de perfil para navegadores Chromium.
+    Verifica tanto o arquivo Cookies quanto se tem tamanho adequado.
     """
-    if browser not in CHROMIUM_BASE_PATHS:
+    if browser not in CHROMIUM_PATHS:
         return None
     
-    paths_to_check = [expand_path(p) for p in CHROMIUM_BASE_PATHS[browser]]
-    
-    for base_path in paths_to_check:
+    for base_path in [expand_path(p) for p in CHROMIUM_PATHS[browser]]:
         if not os.path.isdir(base_path):
             continue
         
-        profile_names = ["Default", "Profile 1", "Profile 2", "Profile 3", "Profile 4", "Profile 5"]
-        
-        for profile in profile_names:
-            cookie_file = os.path.join(base_path, profile, "Cookies")
-            if os.path.isfile(cookie_file):
-                return base_path
-        
-        try:
-            subdirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-            for subdir in subdirs:
-                if subdir.startswith("Profile ") or subdir == "Default":
-                    cookie_file = os.path.join(base_path, subdir, "Cookies")
-                    if os.path.isfile(cookie_file):
-                        return base_path
-        except PermissionError:
-            continue
-    
-    return None
-
-
-def find_firefox_profile() -> Optional[Tuple[str, str, str]]:
-    """
-    Encontra o perfil Firefox ativo.
-    Retorna (profile_path, profile_name, cookie_file_path).
-    """
-    for base_path in [expand_path(p) for p in FIREFOX_BASE_PATHS]:
-        if not os.path.isdir(base_path):
-            continue
-        
-        profiles_ini = os.path.join(base_path, "profiles.ini")
-        if os.path.isfile(profiles_ini):
+        # Verifica perfil Default
+        default_path = os.path.join(base_path, "Default")
+        cookie_file = Path(default_path) / "Cookies"
+        if cookie_file.is_file():
             try:
-                with open(profiles_ini, "r") as f:
-                    content = f.read()
-                
-                lines = content.split("\n")
-                current_profile_id = None
-                default_found = False
-                
-                for i, line in enumerate(lines):
-                    line_stripped = line.strip()
-                    
-                    if line_stripped.startswith("[Profile"):
-                        current_profile_id = i
-                    
-                    if line_stripped == "Default=1" and current_profile_id is not None:
-                        default_found = True
-                    
-                    if line_stripped.startswith("Path=") and current_profile_id is not None:
-                        profile_rel_path = line_stripped.split("=", 1)[1].strip()
-                        
-                        if "Relative=" in lines[current_profile_id] if current_profile_id < len(lines) else False:
-                            pass
-                        
-                        profile_path = os.path.join(base_path, profile_rel_path)
-                        if not os.path.isabs(profile_rel_path):
-                            if os.path.isfile(os.path.join(profile_path, "cookies.sqlite")):
-                                return (profile_path, profile_rel_path, os.path.join(profile_path, "cookies.sqlite"))
-                        else:
-                            if os.path.isdir(profile_path) and os.path.isfile(os.path.join(profile_path, "cookies.sqlite")):
-                                return (profile_path, profile_rel_path, os.path.join(profile_path, "cookies.sqlite"))
-            except (IOError, PermissionError):
+                if cookie_file.stat().st_size > 0:
+                    return base_path
+            except OSError:
                 pass
         
+        # Verifica perfis numerados (Profile 1, Profile 2, etc.)
         try:
             for item in os.listdir(base_path):
-                lower_item = item.lower()
-                if "default" in lower_item or lower_item == "default-release":
+                if item.startswith("Profile ") or item == "Default":
                     profile_path = os.path.join(base_path, item)
                     if os.path.isdir(profile_path):
-                        for sqlite_file in ["cookies.sqlite", "cookies.sqlite-wal"]:
-                            if os.path.isfile(os.path.join(profile_path, sqlite_file)) or \
-                               os.path.isfile(os.path.join(profile_path, "cookies.sqlite")):
-                                return (profile_path, item, os.path.join(profile_path, "cookies.sqlite"))
+                        cookie_file = Path(profile_path) / "Cookies"
+                        if cookie_file.is_file():
+                            try:
+                                if cookie_file.stat().st_size > 0:
+                                    return base_path
+                            except OSError:
+                                continue
         except PermissionError:
             continue
+        
+        # Verifica se o próprio diretório é um perfil
+        cookie_file = Path(base_path) / "Cookies"
+        if cookie_file.is_file():
+            try:
+                if cookie_file.stat().st_size > 0:
+                    return base_path
+            except OSError:
+                pass
     
     return None
 
 
-def find_all_firefox_profiles() -> List[Tuple[str, str]]:
-    """Encontra todos os perfis Firefox disponíveis."""
-    profiles = []
+def parse_firefox_profilesIni(profile_dir: str) -> Optional[str]:
+    """Parse profiles.ini e retorna o caminho do primeiro perfil com cookies."""
+    profiles_ini = os.path.join(profile_dir, "profiles.ini")
+    if not os.path.isfile(profiles_ini):
+        return None
     
-    for base_path in [expand_path(p) for p in FIREFOX_BASE_PATHS]:
+    try:
+        with open(profiles_ini, "r", encoding="utf-8") as f:
+            content = f.read()
+    except (IOError, UnicodeDecodeError):
+        return None
+    
+    lines = content.split("\n")
+    current_profile_name: Optional[str] = None
+    current_path: Optional[str] = None
+    is_default = False
+    
+    for line in lines:
+        line = line.strip()
+        
+        if line.startswith("[Profile"):
+            if current_path and is_default:
+                profile_full_path = os.path.join(profile_dir, current_path)
+                cookies_path = Path(profile_full_path) / "cookies.sqlite"
+                if cookies_path.is_file() and cookies_path.stat().st_size > 0:
+                    return profile_full_path
+            
+            current_profile_name = None
+            current_path = None
+            is_default = False
+        
+        if line.startswith("Default="):
+            is_default = line.split("=", 1)[1].strip() == "1"
+        
+        if line.startswith("Name="):
+            current_profile_name = line.split("=", 1)[1].strip()
+        
+        if line.startswith("Path="):
+            current_path = line.split("=", 1)[1].strip()
+    
+    # Check last profile
+    if current_path:
+        profile_full_path = os.path.join(profile_dir, current_path)
+        cookies_path = Path(profile_full_path) / "cookies.sqlite"
+        if cookies_path.is_file() and cookies_path.stat().st_size > 0:
+            return profile_full_path
+    
+    return None
+
+
+def find_firefox_profile() -> Optional[str]:
+    """
+    Encontra o perfil Firefox ativo.
+    Retorna o caminho do perfil (não o arquivo cookies.sqlite).
+    """
+    # Ordem de verificação: profiles.ini > perfis por nome
+    for base_path in [expand_path(p) for p in FIREFOX_PATHS]:
         if not os.path.isdir(base_path):
             continue
         
-        if os.path.isfile(os.path.join(base_path, "cookies.sqlite")):
-            for item in os.listdir(base_path):
-                full_path = os.path.join(base_path, item)
-                if os.path.isdir(full_path):
-                    if os.path.isfile(os.path.join(full_path, "cookies.sqlite")):
-                        profiles.append((full_path, item))
+        # Primeiro tenta via profiles.ini
+        result = parse_firefox_profilesIni(base_path)
+        if result:
+            return result
         
-        profiles_ini = os.path.join(base_path, "profiles.ini")
-        if os.path.isfile(profiles_ini):
-            try:
-                with open(profiles_ini, "r") as f:
-                    content = f.read()
-                
-                paths = set()
-                lines = content.split("\n")
-                
-                for line in lines:
-                    if line.startswith("Path="):
-                        path_val = line.split("=", 1)[1].strip()
-                        paths.add(path_val)
-                
-                for path_val in paths:
-                    profile_path = os.path.join(base_path, path_val)
-                    if os.path.isdir(profile_path) and path_val not in [p[1] for p in profiles]:
-                        if os.path.isfile(os.path.join(profile_path, "cookies.sqlite")):
-                            profiles.append((profile_path, path_val))
-            except (IOError, PermissionError):
-                pass
+        # Depois tenta localizar perfis manualmente
+        try:
+            for item in os.listdir(base_path):
+                item_lower = item.lower()
+                # Perfis podem ter nomes como: xxxxx.default-release, profile.default, etc.
+                if "default" in item_lower:
+                    profile_path = os.path.join(base_path, item)
+                    if os.path.isdir(profile_path):
+                        cookies_path = Path(profile_path) / "cookies.sqlite"
+                        if cookies_path.is_file():
+                            try:
+                                if cookies_path.stat().st_size > 0:
+                                    return profile_path
+                            except OSError:
+                                continue
+                        # Também verifica cookies.sqlite-wal
+                        wal_path = Path(profile_path) / "cookies.sqlite-wal"
+                        if wal_path.is_file() and wal_path.stat().st_size > 0:
+                            return profile_path
+        except PermissionError:
+            continue
     
-    return profiles
+    return None
 
 
 def detect_browser_path(browser: str) -> Optional[str]:
     """
     Detecta o caminho do navegador para cookies.
-    Retorna o caminho formatado para yt-dlp.
-    
-    Exemplos de saída:
-    - "chrome:/home/user/.config/google-chrome"
-    - "firefox:/home/user/.mozilla/firefox/abc123.default-release"
+    Retorna o caminho formatado para yt-dlp (ex: "brave:/home/user/.config/BraveSoftware/Brave-Browser").
     """
     browser_lower = browser.lower()
     
-    if browser_lower == "firefox":
-        result = find_firefox_profile()
-        if result:
-            profile_path, profile_name, _ = result
+    if browser_lower == "firefox" or browser_lower == "safari":
+        if browser_lower == "firefox":
+            profile_path = find_firefox_profile()
+        else:
+            # Safari não tem suporte direto - retorna None mas avisa
+            return None
+        
+        if profile_path:
             return f"firefox:{profile_path}"
         return None
     
-    if browser_lower in CHROMIUM_BASE_PATHS:
-        path = find_chrome_cookie_path(browser_lower)
+    if browser_lower in CHROMIUM_PATHS:
+        path = find_chrome_profile(browser_lower)
         if path:
             return f"{browser_lower}:{path}"
         return None
@@ -218,9 +301,30 @@ def detect_any_browser() -> Optional[Tuple[str, str]]:
     """
     Detecta qualquer navegador com cookies disponíveis.
     Retorna (browser_name, formatted_path) ou None.
+    Prioriza navegadores na ordem: brave, chrome, firefox, edge, chromium, opera, vivaldi, whale
     """
-    for browser in list(CHROMIUM_BASE_PATHS.keys()) + ["firefox"]:
+    priority_order = ["brave", "chrome", "firefox", "edge", "chromium", "opera", "vivaldi", "whale"]
+    
+    for browser in priority_order:
         path = detect_browser_path(browser)
         if path:
             return (browser.split(":")[0] if ":" in path else browser, path)
+    
     return None
+
+
+def get_detected_browsers() -> List[Tuple[str, str]]:
+    """Retorna lista de todos os navegadores com cookies detectados."""
+    results = []
+    for browser in CHROMIUM_PATHS.keys():
+        if browser == "whale":
+            continue  # Tratado separadamente
+        path = detect_browser_path(browser)
+        if path:
+            results.append((browser, path))
+    
+    ff_path = detect_browser_path("firefox")
+    if ff_path:
+        results.append(("firefox", ff_path))
+    
+    return results
