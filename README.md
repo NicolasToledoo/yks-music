@@ -31,11 +31,11 @@ cd yks-music
 ```
 
 O instalador:
-- Detecta seu sistema operacional (Ubuntu/Debian, Arch, macOS, Fedora)
+- Detecta seu sistema operacional (Ubuntu/Debian, Pop!_OS, Arch, Fedora, openSUSE, Alpine, macOS)
 - Instala `ffmpeg` e Python 3 se necessário
 - Cria `.venv` na pasta do projeto
 - Instala `yt-dlp`, `rich`, `pyfiglet`, `prompt_toolkit`
-- Pede para selecionar navegador para cookies (interativamente com setas)
+- **Detecta automaticamente o navegador e caminho dos cookies** (sem necessidade de configuração manual)
 - Cria comando global `~/.local/bin/yks-music`
 
 ## 🗑️ Desinstalação
@@ -82,7 +82,54 @@ yks-music uninstall          # Remove completamente do sistema
 └── .venv/              # Instalação local
 
 ~/.config/yks-music/
-└── config.json         # Configurações do navegador
+└── config.json         # Configurações do navegador (ex: {"cookie_browser": "brave:/home/user/.config/BraveSoftware/Brave-Browser"})
 ```
+
+## 💡 Dicas para Pop!_OS e Distros Linux
+
+### Detecção Automática de Cookies
+
+O YKS-music detecta automaticamente:
+- **Navegadores instalados** (Brave, Chrome, Chromium, Edge, Opera, Vivaldi, Whale, Firefox)
+- **Instalações Flatpak** (`~/.var/app/...`) 
+- **Perfis múltiplos** (Default, Profile 1, 2, etc)
+- **Perfis Firefox** via `profiles.ini`
+
+### Navegadores Suportados
+
+| Navegador | Caminho Nativo | Caminho Flatpak |
+|-----------|----------------|-----------------|
+| Brave | `~/.config/BraveSoftware/Brave-Browser` | `~/.var/app/com.brave.Browser/config` |
+| Chrome | `~/.config/google-chrome` | `~/.var/app/com.google.Chrome/config` |
+| Firefox | `~/.mozilla/firefox` | `~/.var/app/org.mozilla.firefox/.mozilla` |
+| Vivaldi | `~/.config/vivaldi` | `~/.var/app/com.vivaldi.Vivaldi/config` |
+
+### Se precisar de ajuda:
+```bash
+# Verificar config atual
+cat ~/.config/yks-music/config.json
+
+# Redetectar cookies no menu "Configurações > Cookies do Navegador > Redetectar"
+
+# Verificar se pasta de músicas existe
+ls -la ~/Músicas/yks-musics  # ou ~/Music/yks-musics
+```
+
+## 📊 Distribuições Suportadas
+
+| Distro | Gerenciador de Pacotes | Suporte |
+|--------|----------------------|---------|
+| Ubuntu/Debian | apt-get | ✅ |
+| Pop!_OS | apt-get | ✅ |
+| Linux Mint | apt-get | ✅ |
+| Arch Linux | pacman | ✅ |
+| Manjaro | pacman | ✅ |
+| Fedora | dnf | ✅ |
+| RHEL/CentOS | yum | ✅ |
+| openSUSE | zypper | ✅ |
+| Alpine | apk | ✅ |
+| macOS | brew | ✅ |
+
+O YKS-music funciona automaticamente em todas essas distribuições, detectando cookies de navegadores instalados nativamente ou via Flatpak/Snap.
 
 

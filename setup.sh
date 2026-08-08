@@ -357,31 +357,47 @@ print(json.dumps(result) if result else 'null')
 " 2>/dev/null
 }
 
-print_status "Escolha o navegador que você utiliza:"
-print_status ""
+detect_any_browser_path() {
+    python3 -c "
+import sys
+sys.path.insert(0, '$SCRIPT_DIR')
+from yks_music.detector_cookie import detect_any_browser
+result = detect_any_browser()
+if result:
+    print(result[1])
+else:
+    print('null')
+" 2>/dev/null
+}
 
-browsers=("brave" "chrome" "chromium" "edge" "firefox" "opera" "safari" "vivaldi" "whale")
-select_option_2col "${browsers[@]}"
-BROWSER="${browsers[$SELECTED_OPTION]}"
+print_status "[*] Detectando navegador e caminho dos cookies..."
 
-print_status "[*] Detectando caminho dos cookies..."
-
-DETECTED_PATH=$(detect_cookie_path "$BROWSER")
+DETECTED_PATH=$(detect_any_browser_path)
 
 if [ -n "$DETECTED_PATH" ] && [ "$DETECTED_PATH" != "null" ]; then
     BROWSER_PATH="$DETECTED_PATH"
     DETECTED_DIR="${DETECTED_PATH#*:}"
-    print_status "[✓] Caminho detectado automaticamente: $DETECTED_DIR"
+    BROWSER="${DETECTED_PATH%%:*}"
+    print_status "[✓] Navegador detectado: $BROWSER"
+    print_status "[✓] Caminho encontrado: $DETECTED_DIR"
 else
-    BROWSER_PATH="$BROWSER"
-    print_status "[!] Caminho não detectado automaticamente"
-    read -rp "Digite caminho manualmente (ou ENTER para usar nome apenas): " MANUAL_PATH
-    if [ -n "$MANUAL_PATH" ]; then
-        if [[ "$MANUAL_PATH" == *":"* ]]; then
-            BROWSER_PATH="$MANUAL_PATH"
-        else
-            BROWSER_PATH="$BROWSER:$MANUAL_PATH"
-        fi
+    print_status "[!] Nenhum navegador com cookies encontrado automaticamente"
+    print_status "    Buscando por nome selecionado..."
+    
+    browsers=("brave" "chrome" "chromium" "edge" "firefox" "opera" "safari" "vivaldi" "whale")
+    select_option_2col "${browsers[@]}"
+    BROWSER="${browsers[$SELECTED_OPTION]}"
+    
+    DETECTED_PATH=$(detect_cookie_path "$BROWSER")
+    
+    if [ -n "$DETECTED_PATH" ] && [ "$DETECTED_PATH" != "null" ]; then
+        BROWSER_PATH="$DETECTED_PATH"
+        DETECTED_DIR="${DETECTED_PATH#*:}"
+        print_status "[✓] Caminho detectado: $DETECTED_DIR"
+    else
+        BROWSER_PATH="$BROWSER"
+        print_status "[!] Caminho não detectado para $BROWSER"
+        print_status "    O yks-music tentará localizar automaticamente"
     fi
 fi
 
@@ -393,14 +409,16 @@ printf '{"cookie_browser": "%s"}\n' "$BROWSER_PATH" > "$CONFIG_FILE"
 print_status "[✓] Navegador configurado: $BROWSER"
 
 # --- Create global shortcut ---
-# Garante que ~/.local/bin está no PATH para detectar yks-music depois
-export PATH="$HOME/.local/bin:$PATH"
-
-run_cmd "[*] Criando atalho global..." bash -c "mkdir -p $HOME/.local/bin && cat > $HOME/.local/bin/yks-music << 'EOshortcut'
+print_status "[*] Atualizando atalho global..."
+VENV_PATH="$SCRIPT_DIR/.venv"
+if [ -d "$VENV_PATH" ]; then
+    cat > "$HOME/.local/bin/yks-music" << EOF
 #!/usr/bin/env bash
-exec \"$VENV_DIR/bin/yks-music\" \"\$@\"
-EOshortcut
-chmod +x $HOME/.local/bin/yks-music"
+exec "$VENV_PATH/bin/yks-music" "\$@"
+EOF
+    chmod +x "$HOME/.local/bin/yks-music"
+    print_status "[✓] Atalho atualizado: ~/.local/bin/yks-music"
+fi
 
 # --- Verify installation ---
 print_status ""
