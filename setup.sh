@@ -344,6 +344,19 @@ print_status "  • Baixar músicas com restrição de idade"
 print_status "  • Evitar erro 'Sign in to confirm you're not a bot'"
 print_status "  • Garantir estabilidade nos downloads"
 print_status ""
+
+detect_cookie_path() {
+    local browser="$1"
+    python3 -c "
+import sys
+sys.path.insert(0, '$SCRIPT_DIR')
+from yks_music.detector_cookie import detect_browser_path
+import json
+result = detect_browser_path('$browser')
+print(json.dumps(result) if result else 'null')
+" 2>/dev/null
+}
+
 print_status "Escolha o navegador que você utiliza:"
 print_status ""
 
@@ -351,10 +364,31 @@ browsers=("brave" "chrome" "chromium" "edge" "firefox" "opera" "safari" "vivaldi
 select_option_2col "${browsers[@]}"
 BROWSER="${browsers[$SELECTED_OPTION]}"
 
+print_status "[*] Detectando caminho dos cookies..."
+
+DETECTED_PATH=$(detect_cookie_path "$BROWSER")
+
+if [ -n "$DETECTED_PATH" ] && [ "$DETECTED_PATH" != "null" ]; then
+    BROWSER_PATH="$DETECTED_PATH"
+    DETECTED_DIR="${DETECTED_PATH#*:}"
+    print_status "[✓] Caminho detectado automaticamente: $DETECTED_DIR"
+else
+    BROWSER_PATH="$BROWSER"
+    print_status "[!] Caminho não detectado automaticamente"
+    read -rp "Digite caminho manualmente (ou ENTER para usar nome apenas): " MANUAL_PATH
+    if [ -n "$MANUAL_PATH" ]; then
+        if [[ "$MANUAL_PATH" == *":"* ]]; then
+            BROWSER_PATH="$MANUAL_PATH"
+        else
+            BROWSER_PATH="$BROWSER:$MANUAL_PATH"
+        fi
+    fi
+fi
+
 CONFIG_DIR="$HOME/.config/yks-music"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 mkdir -p "$CONFIG_DIR"
-printf '{"cookie_browser": "%s"}\n' "$BROWSER" > "$CONFIG_FILE"
+printf '{"cookie_browser": "%s"}\n' "$BROWSER_PATH" > "$CONFIG_FILE"
 
 print_status "[✓] Navegador configurado: $BROWSER"
 

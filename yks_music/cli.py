@@ -27,7 +27,7 @@ from prompt_toolkit.styles import Style
 
 from .config import (
     DEFAULT_AUDIO_FORMAT, MUSIC_BASE, SEARCH_PAGE_SIZE, get_music_base,
-    SUPPORTED_BROWSERS, get_cookie_browser, set_cookie_browser
+    SUPPORTED_BROWSERS, get_cookie_browser, get_cookie_browser_and_path, set_cookie_browser
 )
 from .downloader import download_playlist, download_video
 from .playlist_manager import add_to_playlist, create_playlist, delete_playlist, list_playlists
@@ -682,7 +682,10 @@ def settings_menu():
 
 def cookie_settings_menu():
     """Menu para configurar o navegador de cookies."""
-    current_browser = get_cookie_browser()
+    current_browser, cookies_path = get_cookie_browser_and_path()
+    current_browser_display = current_browser
+    if cookies_path and ":" in cookies_path:
+        current_browser_display = f"{current_browser} @ {cookies_path.split(':', 1)[1]}"
     
     while True:
         options = []
@@ -691,10 +694,11 @@ def cookie_settings_menu():
                 options.append(("", f"{browser}  (atual)"))
             else:
                 options.append(("", browser))
+        options.append(("", "🔄 Redetectar automaticamente"))
         
         idx = arrow_menu(options)
         
-        if idx is None:  # Esc
+        if idx is None:
             return
         
         if 0 <= idx < len(SUPPORTED_BROWSERS):
@@ -702,6 +706,19 @@ def cookie_settings_menu():
             set_cookie_browser(selected_browser)
             current_browser = selected_browser
             console.print(f"[green]✓ Navegador alterado para: {selected_browser}[/green]")
+            console.print("[yellow]Execute o setup.sh novamente ou reinicie yks-music para detectar o caminho[/yellow]")
+            input("\nPressione ENTER para continuar...")
+            return
+        
+        if idx == len(options) - 1:
+            from .detector_cookie import detect_browser_path
+            new_path = detect_browser_path(current_browser)
+            if new_path:
+                set_cookie_browser(new_path)
+                current_browser_display = f"{current_browser} @ {new_path.split(':', 1)[1]}"
+                console.print(f"[green]✓ Caminho detectado: {new_path.split(':', 1)[1]}[/green]")
+            else:
+                console.print(f"[yellow]! Navegador {current_browser} não encontrado[/yellow]")
             input("\nPressione ENTER para continuar...")
             return
 

@@ -4,7 +4,7 @@ Módulo de busca no YouTube usando yt-dlp.
 
 import subprocess
 
-from .config import SEARCH_PAGE_SIZE, YTDLP_CMD
+from .config import SEARCH_PAGE_SIZE, YTDLP_CMD, get_yt_dlp_path
 
 
 def search_youtube(query: str, page: int = 1, page_size: int = SEARCH_PAGE_SIZE) -> list[dict]:
@@ -23,7 +23,7 @@ def search_youtube(query: str, page: int = 1, page_size: int = SEARCH_PAGE_SIZE)
     end = page * page_size
     
     cmd = [
-        YTDLP_CMD,
+        get_yt_dlp_path(),
         f"ytsearch{end}:{query}",
         f"--playlist-items={start}:{end}",
         "--print", "%(id)s|||%(title)s|||%(duration_string)s",

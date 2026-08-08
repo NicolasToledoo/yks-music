@@ -20,6 +20,7 @@ env/
 
 # Editor / IDE
 .vscode/
+.kilo
 .idea/
 *.swp
 *.swo
