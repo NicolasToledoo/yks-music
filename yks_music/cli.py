@@ -687,6 +687,25 @@ def cookie_settings_menu():
     if cookies_path and ":" in cookies_path:
         current_browser_display = f"{current_browser} @ {cookies_path.split(':', 1)[1]}"
     
+    def get_install_method(path: str) -> str:
+        if "snap" in path:
+            return "snap"
+        elif ".var/app" in path:
+            return "flatpak"
+        else:
+            return "native"
+    
+    def get_browser_sources(browser: str) -> dict:
+        native = snap = flatpak = ""
+        if browser == "firefox":
+            native = "~/.mozilla/firefox"
+            snap = "~/snap/firefox/common/.mozilla/firefox"
+            flatpak = "~/.var/app/org.mozilla.firefox/.mozilla/firefox"
+        else:
+            native = os.path.expanduser(f"~/.config/{browser.capitalize()[:-1]}")
+            flatpak = os.path.expanduser(f"~/.var/app/com.{browser}.Browser/config/{browser.capitalize()}")
+        return {"native": native, "snap": snap, "flatpak": flatpak}
+    
     while True:
         options = []
         for browser in SUPPORTED_BROWSERS:
@@ -703,10 +722,41 @@ def cookie_settings_menu():
         
         if 0 <= idx < len(SUPPORTED_BROWSERS):
             selected_browser = SUPPORTED_BROWSERS[idx]
-            set_cookie_browser(selected_browser)
-            current_browser = selected_browser
-            console.print(f"[green]✓ Navegador alterado para: {selected_browser}[/green]")
-            console.print("[yellow]Execute o setup.sh novamente ou reinicie yks-music para detectar o caminho[/yellow]")
+            
+            # Detectar caminho automaticamente
+            from .detector_cookie import detect_browser_path
+            new_path = detect_browser_path(selected_browser)
+            
+            if new_path:
+                install_method = get_install_method(new_path)
+                sources = get_browser_sources(selected_browser)
+                
+                # Atualizar config.json com todos os campos
+                from .config import save_config
+                import json
+                from datetime import datetime
+                
+                config_data = {
+                    "cookie_browser": new_path,
+                    "browser": selected_browser,
+                    "profile_path": new_path.split(":", 1)[1],
+                    "install_method": install_method,
+                    "sources": sources,
+                    "detected_at": datetime.now().isoformat()
+                }
+                save_config(config_data)
+                
+                current_browser = selected_browser
+                current_browser_display = f"{selected_browser} @ {new_path.split(':', 1)[1]}"
+                console.print(f"[green]✓ Navegador alterado: {selected_browser}[/green]")
+                console.print(f"[green]✓ Caminho: {new_path.split(':', 1)[1]}[/green]")
+                console.print(f"[green]✓ Método: {install_method}[/green]")
+            else:
+                console.print(f"[yellow]! Navegador {selected_browser} não encontrado[/yellow]")
+                # Salvar apenas o nome caso não encontre caminho
+                from .config import set_cookie_browser
+                set_cookie_browser(selected_browser)
+                current_browser = selected_browser
             input("\nPressione ENTER para continuar...")
             return
         
@@ -714,9 +764,26 @@ def cookie_settings_menu():
             from .detector_cookie import detect_browser_path
             new_path = detect_browser_path(current_browser)
             if new_path:
-                set_cookie_browser(new_path)
+                install_method = get_install_method(new_path)
+                sources = get_browser_sources(current_browser)
+                
+                from .config import save_config
+                import json
+                from datetime import datetime
+                
+                config_data = {
+                    "cookie_browser": new_path,
+                    "browser": current_browser,
+                    "profile_path": new_path.split(":", 1)[1],
+                    "install_method": install_method,
+                    "sources": sources,
+                    "detected_at": datetime.now().isoformat()
+                }
+                save_config(config_data)
+                
                 current_browser_display = f"{current_browser} @ {new_path.split(':', 1)[1]}"
                 console.print(f"[green]✓ Caminho detectado: {new_path.split(':', 1)[1]}[/green]")
+                console.print(f"[green]✓ Método: {install_method}[/green]")
             else:
                 console.print(f"[yellow]! Navegador {current_browser} não encontrado[/yellow]")
             input("\nPressione ENTER para continuar...")
