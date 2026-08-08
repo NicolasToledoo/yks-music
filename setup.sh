@@ -404,7 +404,86 @@ fi
 CONFIG_DIR="$HOME/.config/yks-music"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 mkdir -p "$CONFIG_DIR"
-printf '{"cookie_browser": "%s"}\n' "$BROWSER_PATH" > "$CONFIG_FILE"
+
+# Determinar método de instalação detectado
+get_install_method() {
+    local path="$1"
+    if [[ "$path" == *"snap"* ]]; then
+        echo "snap"
+    elif [[ "$path" == *".var/app"* ]]; then
+        echo "flatpak"
+    else
+        echo "native"
+    fi
+}
+
+INSTALL_METHOD=$(get_install_method "$DETECTED_DIR")
+
+# Mapear navegador para caminhos de origem
+case "$BROWSER" in
+    brave)
+        NATIVE_PATH="$HOME/.config/BraveSoftware/Brave-Browser"
+        SNAP_PATH="$HOME/snap/brave/current/.config/BraveSoftware/Brave-Browser"
+        FLATPAK_PATH="$HOME/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser"
+        ;;
+    chrome)
+        NATIVE_PATH="$HOME/.config/google-chrome"
+        FLATPAK_PATH="$HOME/.var/app/com.google.Chrome/config/google-chrome"
+        SNAP_PATH=""
+        ;;
+    chromium)
+        NATIVE_PATH="$HOME/.config/chromium"
+        SNAP_PATH="$HOME/snap/chromium/common/chromium"
+        FLATPAK_PATH="$HOME/.var/app/org.chromium.Chromium/config/chromium"
+        ;;
+    edge)
+        NATIVE_PATH="$HOME/.config/microsoft-edge"
+        FLATPAK_PATH="$HOME/.var/app/com.microsoft.Edge/config/microsoft-edge"
+        SNAP_PATH=""
+        ;;
+    opera)
+        NATIVE_PATH="$HOME/.config/opera"
+        FLATPAK_PATH="$HOME/.var/app/com.opera.Opera/config/opera"
+        SNAP_PATH=""
+        ;;
+    vivaldi)
+        NATIVE_PATH="$HOME/.config/vivaldi"
+        FLATPAK_PATH="$HOME/.var/app/com.vivaldi.Vivaldi/config/vivaldi"
+        SNAP_PATH=""
+        ;;
+    firefox)
+        NATIVE_PATH="$HOME/.mozilla/firefox"
+        FLATPAK_PATH="$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox"
+        SNAP_PATH="$HOME/snap/firefox/common/.mozilla/firefox"
+        ;;
+    *)
+        NATIVE_PATH=""
+        FLATPAK_PATH=""
+        SNAP_PATH=""
+        ;;
+esac
+
+# Criar config.json com informações detalhadas
+if [ -n "$DETECTED_PATH" ] && [ "$DETECTED_PATH" != "null" ]; then
+    cat > "$CONFIG_FILE" << EOF
+{
+  "cookie_browser": "$BROWSER_PATH",
+  "browser": "$BROWSER",
+  "profile_path": "$DETECTED_DIR",
+  "install_method": "$INSTALL_METHOD",
+  "sources": {
+    "native": "$NATIVE_PATH",
+    "snap": "$SNAP_PATH",
+    "flatpak": "$FLATPAK_PATH"
+  },
+  "detected_at": "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S%z)"
+}
+EOF
+    print_status "[✓] Config criado - método: $INSTALL_METHOD"
+    print_status "[✓] URL: $BROWSER_PATH"
+else
+    printf '{"cookie_browser": "%s", "browser": "%s", "install_method": "none"}\n' "$BROWSER_PATH" "$BROWSER" > "$CONFIG_FILE"
+fi
 
 print_status "[✓] Navegador configurado: $BROWSER"
 
