@@ -133,3 +133,4 @@ ls -la ~/Músicas/yks-musics  # ou ~/Music/yks-musics
 O YKS-music funciona automaticamente em todas essas distribuições, detectando cookies de navegadores instalados nativamente ou via Flatpak/Snap.
 
 
+https://www.youtube.com/playlist?list=PLKdpAe6eh-UU
