@@ -242,9 +242,25 @@ install_ffmpeg() {
             fi
             ;;
         *)
-            print_status "[!] Não foi possível detectar o gerenciador de pacotes."
-            print_status "    Instale ffmpeg manualmente: https://ffmpeg.org/download.html"
-            exit 1
+            if command -v ffmpeg &>/dev/null; then
+                print_status "[*] ffmpeg já instalado: $(command -v ffmpeg)"
+            else
+                print_status "[!] Gerenciador de pacotes não detectado."
+                print_status "    Instale ffmpeg manualmente: https://ffmpeg.org/download.html"
+                print_status "    Exemplos para distros não listadas:"
+                print_status "      Void Linux:    sudo xbps-install -S ffmpeg"
+                print_status "      NixOS:         nix-env -iA nixpkgs.ffmpeg"
+                print_status "      Gentoo:        sudo emerge media-video/ffmpeg"
+                print_status "      Solus:         sudo eopkg install ffmpeg"
+                print_status "      Amazon Linux:  sudo yum install ffmpeg"
+                print_status ""
+                read -rp "    Pressione ENTER após instalar ffmpeg, ou Ctrl+C para abortar: " -n 1 REPLY_MANUAL
+                echo
+                if ! command -v ffmpeg &>/dev/null; then
+                    print_status "[!] ffmpeg ainda não encontrado. Abortando."
+                    exit 1
+                fi
+            fi
             ;;
     esac
 }
@@ -290,8 +306,24 @@ if ! command -v python3 &>/dev/null; then
             run_cmd "[*] Instalando Python 3..." brew install python
             ;;
         *)
-            print_status "    Instale Python 3 manualmente."
-            exit 1
+            if command -v python3 &>/dev/null; then
+                print_status "[*] Python 3 já instalado: $(command -v python3)"
+            else
+                print_status "[!] Gerenciador de pacotes não detectado."
+                print_status "    Instale Python 3 manualmente: https://www.python.org/downloads/"
+                print_status "    Exemplos para distros não listadas:"
+                print_status "      Void Linux:    sudo xbps-install -S python3 python3-pip"
+                print_status "      NixOS:         nix-env -iA nixpkgs.python3"
+                print_status "      Gentoo:        sudo emerge dev-lang/python"
+                print_status "      Solus:         sudo eopkg install python3"
+                print_status ""
+                read -rp "    Pressione ENTER após instalar Python 3, ou Ctrl+C para abortar: " -n 1 REPLY_MANUAL
+                echo
+                if ! command -v python3 &>/dev/null; then
+                    print_status "[!] Python 3 ainda não encontrado. Abortando."
+                    exit 1
+                fi
+            fi
             ;;
     esac
 fi
@@ -499,6 +531,74 @@ EOF
     print_status "[✓] Atalho atualizado: ~/.local/bin/yks-music"
 fi
 
+# --- Detect default shell ---
+get_default_shell() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        if command -v dscl &>/dev/null; then
+            dscl . -read ~ UserShell 2>/dev/null | awk '{print $2}'
+        fi
+    else
+        if command -v getent &>/dev/null; then
+            getent passwd "$USER" 2>/dev/null | cut -d: -f7
+        fi
+    fi
+    echo "${SHELL:-/bin/sh}"
+}
+
+DEFAULT_SHELL="$(get_default_shell)"
+print_status "[*] Shell padrão detectado: $DEFAULT_SHELL"
+
+# --- Configure PATH for installed shells ---
+configure_shell_path() {
+    local shell_name="$1"
+    local shell_rc="$2"
+    local path_line="$3"
+
+    # Check if shell is installed
+    if ! command -v "$shell_name" &>/dev/null; then
+        return
+    fi
+
+    # Check if this is the default shell
+    local is_default="false"
+    if [[ "$DEFAULT_SHELL" == *"$shell_name"* ]]; then
+        is_default="true"
+    fi
+
+    # For fish: create config.fish if it doesn't exist
+    if [[ "$shell_name" == "fish" ]] && [[ ! -f "$shell_rc" ]]; then
+        mkdir -p "$(dirname "$shell_rc")"
+        echo "$path_line" > "$shell_rc"
+        print_status "[✓] $shell_rc criado com PATH (shell padrão: fish)"
+        return
+    fi
+
+    # Check if already configured
+    if [[ -f "$shell_rc" ]] && grep -q '\.local/bin' "$shell_rc" 2>/dev/null; then
+        if [[ "$is_default" == "true" ]]; then
+            print_status "[*] $shell_name: PATH já configurado (shell padrão)"
+        else
+            print_status "[*] $shell_name: PATH já configurado"
+        fi
+        return
+    fi
+
+    # Add PATH entry
+    if [[ -f "$shell_rc" ]]; then
+        echo "$path_line" >> "$shell_rc"
+        if [[ "$is_default" == "true" ]]; then
+            print_status "[✓] PATH adicionado em $shell_rc (shell padrão: $shell_name)"
+        else
+            print_status "[✓] PATH adicionado em $shell_rc ($shell_name)"
+        fi
+    fi
+}
+
+# Configure PATH for each installed shell
+configure_shell_path "bash" "$HOME/.bashrc" 'export PATH="$HOME/.local/bin:$PATH"'
+configure_shell_path "zsh" "$HOME/.zshrc" 'export PATH="$HOME/.local/bin:$PATH"'
+configure_shell_path "fish" "$HOME/.config/fish/config.fish" 'fish_add_path ~/.local/bin'
+
 # --- Verify installation ---
 print_status ""
 print_status "========================================="
@@ -512,9 +612,9 @@ if command -v yks-music &>/dev/null; then
     print_status "[✓] Verificação: OK"
 else
     print_status "[!] ~/.local/bin não está no PATH"
-    print_status "    Adicione a seu ~/.bashrc ou ~/.zshrc:"
+    print_status "    Execute o comando abaixo para o shell atual:"
     print_status '    export PATH="$HOME/.local/bin:$PATH"'
-    print_status "    Ou execute: yks-music via $HOME/.local/bin/yks-music"
+    print_status "    Ou reinicie o terminal."
 fi
 
 print_status ""

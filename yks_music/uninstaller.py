@@ -10,6 +10,8 @@ from pathlib import Path
 from rich.prompt import Confirm
 from rich.console import Console
 
+from .config import get_music_base
+
 console = Console()
 
 
@@ -18,7 +20,7 @@ def get_install_info():
     local_bin = Path.home() / ".local" / "bin" / "yks-music"
     cache_dir = Path.home() / ".cache" / "yks-music"
     config_dir = Path.home() / ".config" / "yks-music"
-    music_dir = Path.home() / "Músicas" / "yks-musics"
+    music_dir = get_music_base()
 
     return {
         "command_path": local_bin,
@@ -122,6 +124,8 @@ def perform_uninstall():
     try:
         import subprocess
         extra_args = []
+
+        # Detectar externally-managed-environment (apenas Linux)
         if sys.platform != "darwin":
             test_result = subprocess.run(
                 [sys.executable, "-m", "pip", "uninstall", "yks-music", "-y"],
@@ -132,12 +136,12 @@ def perform_uninstall():
             if test_result.returncode != 0 and "externally-managed-environment" in (test_result.stderr + test_result.stdout):
                 extra_args = ["--break-system-packages"]
 
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "uninstall", "yks-music", "-y"] + extra_args,
-                check=False,
-                capture_output=True,
-                text=True
-            )
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "yks-music", "-y"] + extra_args,
+            check=False,
+            capture_output=True,
+            text=True
+        )
 
         if result.returncode == 0:
             console.print("[green]  [OK] Pacote Python desinstalado (yks-music)[/green]")

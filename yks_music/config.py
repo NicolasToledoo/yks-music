@@ -3,6 +3,7 @@ Configurações globais do yks-music.
 """
 
 import json
+import platform
 import shutil
 import os
 from pathlib import Path
@@ -133,11 +134,11 @@ def get_music_base() -> Path:
     Prioriza:
     1. Variável de ambiente XDG_MUSIC_DIR
     2. xdg-user-dir MUSIC (Linux)
-    3. ~/Músicas (português)
-    4. ~/Music (inglês)
-    5. ~/Music como fallback padrão
+    3. Candidatos por plataforma (macOS vs Linux)
+    4. ~/Music como fallback padrão
     """
     home = Path.home()
+    is_macos = platform.system() == "Darwin"
 
     # 1. Verifica XDG_MUSIC_DIR (variável de ambiente padrão Linux)
     xdg_music = os.environ.get("XDG_MUSIC_DIR")
@@ -162,21 +163,29 @@ def get_music_base() -> Path:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass  # xdg-user-dir não disponível
 
-    # 3. Tentativas comuns de pastas de música
-    candidates = [
-        home / "Músicas",       # Português (Brasil)
-        home / "Music",         # Inglês
-        home / "Música",        # Singular português
-        home / "músicas",       # Minúsculo
-        home / "music",         # Minúsculo inglês
-    ]
+    # 3. Candidatos por plataforma
+    if is_macos:
+        # No macOS, ~/Music é o padrão do sistema
+        candidates = [
+            home / "Music",
+            home / "Músicas",
+        ]
+    else:
+        # No Linux, ~/Músicas é o XDG padrão em português
+        candidates = [
+            home / "Músicas",       # Português (Brasil)
+            home / "Music",         # Inglês
+            home / "Música",        # Singular português
+            home / "músicas",       # Minúsculo
+            home / "music",         # Minúsculo inglês
+        ]
 
     for candidate in candidates:
         if candidate.exists():
             return candidate / "yks-musics"
 
-    # 4. Fallback padrão (cria ~/Músicas se não existir)
-    default_path = home / "Músicas" / "yks-musics"
+    # 4. Fallback padrão (usa ~/Music por ser universal)
+    default_path = home / "Music" / "yks-musics"
     return default_path
 
 

@@ -21,12 +21,12 @@ def build_audio_opts() -> List[str]:
         "--embed-thumbnail",
         "--embed-metadata",
         "--no-mtime",
-        "--sleep-interval", "1",
-        "--max-sleep-interval", "3",
+        "--sleep-interval", "0.5",
+        "--max-sleep-interval", "1",
         "--concurrent-fragments", "32",
         "--throttled-rate", "100K",
         "--fragment-retries", "5",
-        "--sleep-requests", "1",
+        "--sleep-requests", "0.5",
     ]
     
     if cookies_path:

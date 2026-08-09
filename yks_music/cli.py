@@ -402,7 +402,7 @@ def playlist_management_menu():
     while True:
         options = [
             (" ", "Criar Nova Playlist"),
-            (" ", "Criar Playlist de Link"),
+            (" ", "Importar Playlist pelo Link"),
             (" ", "Listar Playlists"),
             (" ", "Adicionar Música a Playlist"),
             (" ", "Deletar Playlist"),
@@ -696,15 +696,49 @@ def cookie_settings_menu():
             return "native"
     
     def get_browser_sources(browser: str) -> dict:
-        native = snap = flatpak = ""
-        if browser == "firefox":
-            native = "~/.mozilla/firefox"
-            snap = "~/snap/firefox/common/.mozilla/firefox"
-            flatpak = "~/.var/app/org.mozilla.firefox/.mozilla/firefox"
-        else:
-            native = os.path.expanduser(f"~/.config/{browser.capitalize()[:-1]}")
-            flatpak = os.path.expanduser(f"~/.var/app/com.{browser}.Browser/config/{browser.capitalize()}")
-        return {"native": native, "snap": snap, "flatpak": flatpak}
+        BROWSER_PATHS = {
+            "firefox": {
+                "native": "~/.mozilla/firefox",
+                "snap": "~/snap/firefox/common/.mozilla/firefox",
+                "flatpak": "~/.var/app/org.mozilla.firefox/.mozilla/firefox",
+            },
+            "brave": {
+                "native": "~/.config/BraveSoftware/Brave-Browser",
+                "snap": "~/snap/brave/current/.config/BraveSoftware/Brave-Browser",
+                "flatpak": "~/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser",
+            },
+            "chrome": {
+                "native": "~/.config/google-chrome",
+                "snap": "",
+                "flatpak": "~/.var/app/com.google.Chrome/config/google-chrome",
+            },
+            "chromium": {
+                "native": "~/.config/chromium",
+                "snap": "~/snap/chromium/common/chromium",
+                "flatpak": "~/.var/app/org.chromium.Chromium/config/chromium",
+            },
+            "edge": {
+                "native": "~/.config/microsoft-edge",
+                "snap": "",
+                "flatpak": "~/.var/app/com.microsoft.Edge/config/microsoft-edge",
+            },
+            "opera": {
+                "native": "~/.config/opera",
+                "snap": "~/snap/opera/common/opera",
+                "flatpak": "~/.var/app/com.opera.Opera/config/opera",
+            },
+            "vivaldi": {
+                "native": "~/.config/vivaldi",
+                "snap": "",
+                "flatpak": "~/.var/app/com.vivaldi.Vivaldi/config/vivaldi",
+            },
+            "whale": {
+                "native": "~/.config/naver-whale",
+                "snap": "",
+                "flatpak": "~/.var/app/com.naver.Whale/config/naver-whale",
+            },
+        }
+        return BROWSER_PATHS.get(browser, {"native": "", "snap": "", "flatpak": ""})
     
     while True:
         options = []
