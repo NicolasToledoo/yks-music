@@ -13,6 +13,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETUP_LOG="/tmp/yks-setup.log"
 : > "$SETUP_LOG"
 
+# --- Parse arguments ---
+FORCE_REINSTALL=0
+for arg in "$@"; do
+    case "$arg" in
+        --force) FORCE_REINSTALL=1 ;;
+    esac
+done
+
+# --- Color helpers ---
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+msg_info()    { printf "${CYAN}[INFO]${NC} %s\n" "$1"; }
+msg_success() { printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"; }
+msg_warn()    { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
+msg_error()   { printf "${RED}[ERROR]${NC} %s\n" "$1"; }
+
 # --- Banner fixo no topo (9 linhas) ---
 BANNER_LINES=9
 print_banner() {
@@ -265,6 +285,131 @@ install_ffmpeg() {
     esac
 }
 
+# --- Install yt-dlp with native + pip fallback ---
+install_yt_dlp() {
+    local venv_ytdlp="$VENV_DIR/bin/yt-dlp"
+
+    # 1. Check if already installed (unless --force)
+    if [ "$FORCE_REINSTALL" -eq 0 ]; then
+        local existing_ytdlp
+        existing_ytdlp=$(command -v yt-dlp 2>/dev/null)
+        if [ -n "$existing_ytdlp" ]; then
+            local ytdlp_version
+            ytdlp_version=$("$existing_ytdlp" --version 2>/dev/null | head -1)
+            msg_success "yt-dlp já instalado: $existing_ytdlp ($ytdlp_version)"
+            return 0
+        fi
+        if [ -x "$venv_ytdlp" ]; then
+            ytdlp_version=$("$venv_ytdlp" --version 2>/dev/null | head -1)
+            msg_success "yt-dlp já instalado no .venv: $ytdlp_version"
+            return 0
+        fi
+    fi
+
+    msg_info "Instalando yt-dlp..."
+    local install_ok=0
+
+    # 2. Try native package manager
+    case "$OS" in
+        debian)
+            if sudo apt update >> "$SETUP_LOG" 2>&1 && \
+               sudo apt install -y yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        arch)
+            if sudo pacman -Sy --noconfirm yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        fedora)
+            if sudo dnf install -y yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        rhel)
+            if sudo yum install -y yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        opensuse)
+            if sudo zypper install -y yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        alpine)
+            if apk add yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        macos)
+            if command -v brew &>/dev/null; then
+                if brew install yt-dlp >> "$SETUP_LOG" 2>&1; then
+                    install_ok=1
+                fi
+            else
+                msg_warn "Homebrew não encontrado, tentando pip..."
+            fi
+            ;;
+    esac
+
+    # 3. Verify native binary works
+    if [ "$install_ok" -eq 1 ]; then
+        local nativo
+        nativo=$(command -v yt-dlp 2>/dev/null)
+        if [ -n "$nativo" ] && "$nativo" --version &>/dev/null; then
+            local nativo_version
+            nativo_version=$("$nativo" --version 2>/dev/null | head -1)
+            msg_success "yt-dlp instalado via gerenciador de pacotes: $nativo ($nativo_version)"
+            return 0
+        fi
+        msg_warn "Instalação nativa falhou, tentando fallback pip..."
+    fi
+
+    # 4. Fallback: pip in .venv
+    msg_info "Tentando instalação via pip no .venv..."
+    local pip_args="yt-dlp"
+    if [ "$FORCE_REINSTALL" -eq 1 ]; then
+        pip_args="--force-reinstall yt-dlp"
+    fi
+
+    # Try without --break-system-packages
+    if pip install $pip_args >> "$SETUP_LOG" 2>&1; then
+        if [ -x "$venv_ytdlp" ]; then
+            local pip_version
+            pip_version=$("$venv_ytdlp" --version 2>/dev/null | head -1)
+            msg_success "yt-dlp instalado via pip no .venv ($pip_version)"
+            return 0
+        fi
+    fi
+
+    # Try with --break-system-packages
+    if pip install --break-system-packages $pip_args >> "$SETUP_LOG" 2>&1; then
+        if [ -x "$venv_ytdlp" ]; then
+            pip_version=$("$venv_ytdlp" --version 2>/dev/null | head -1)
+            msg_success "yt-dlp instalado via pip --break-system-packages ($pip_version)"
+            return 0
+        fi
+    fi
+
+    # Try --user as last resort
+    if pip install --user $pip_args >> "$SETUP_LOG" 2>&1; then
+        msg_success "yt-dlp instalado via pip --user"
+        return 0
+    fi
+
+    # 5. Everything failed
+    msg_error "Falha ao instalar yt-dlp."
+    msg_error "Verifique o log: $SETUP_LOG"
+    msg_error "Tente instalar manualmente:"
+    msg_error "  Debian/Ubuntu: sudo apt install yt-dlp"
+    msg_error "  Arch:          sudo pacman -S yt-dlp"
+    msg_error "  Fedora:        sudo dnf install yt-dlp"
+    msg_error "  macOS:         brew install yt-dlp"
+    msg_error "  pip:           pip install yt-dlp"
+    return 1
+}
+
 # ============================================
 # Início
 # ============================================
@@ -363,7 +508,7 @@ fi
 source "$VENV_DIR/bin/activate"
 run_cmd "[*] Atualizando pip..." pip install --upgrade pip
 run_cmd "[*] Instalando yks-music..." pip install -e "$SCRIPT_DIR"
-run_cmd "[*] Instalando dependências..." pip install yt-dlp
+install_yt_dlp
 
 # --- Configurar Cookie do Navegador ---
 print_status ""
@@ -602,22 +747,60 @@ configure_shell_path "fish" "$HOME/.config/fish/config.fish" 'fish_add_path ~/.l
 # --- Verify installation ---
 print_status ""
 print_status "========================================="
+print_status "  Verificando Instalação..."
+print_status "========================================="
+print_status ""
+
+# Verificar yt-dlp: PATH do sistema primeiro, depois .venv
+VENV_PATH="$SCRIPT_DIR/.venv"
+ytdlp_found=0
+
+# Checar no PATH do sistema
+system_ytdlp=$(command -v yt-dlp 2>/dev/null)
+if [ -n "$system_ytdlp" ]; then
+    ytdlp_version=$("$system_ytdlp" --version 2>/dev/null | head -1)
+    print_status "[✓] yt-dlp (sistema): $system_ytdlp ($ytdlp_version)"
+    ytdlp_found=1
+fi
+
+# Checar no .venv
+if [ -x "$VENV_PATH/bin/yt-dlp" ]; then
+    ytdlp_version=$("$VENV_PATH/bin/yt-dlp" --version 2>/dev/null | head -1)
+    print_status "[✓] yt-dlp (.venv): $ytdlp_version"
+    ytdlp_found=1
+fi
+
+# Se não encontrou nenhum, reinstalar
+if [ "$ytdlp_found" -eq 0 ]; then
+    print_status "[!] yt-dlp não encontrado, reinstalando..."
+    FORCE_REINSTALL=1
+    install_yt_dlp
+fi
+
+# Verificar ffmpeg
+if command -v ffmpeg &>/dev/null; then
+    print_status "[✓] ffmpeg encontrado: $(command -v ffmpeg)"
+else
+    print_status "[!] ffmpeg não encontrado"
+fi
+
+print_status ""
+print_status "========================================="
 print_status "  Instalação Concluída!"
 print_status "========================================="
 print_status ""
 print_status "[✓] yks-music instalado com sucesso!"
 print_status "[✓] Comando disponível: ~/.local/bin/yks-music"
 
-if command -v yks-music &>/dev/null; then
+# Verificar atalho funcional
+if [ -x "$HOME/.local/bin/yks-music" ]; then
     print_status "[✓] Verificação: OK"
 else
-    print_status "[!] ~/.local/bin não está no PATH"
-    print_status "    Execute o comando abaixo para o shell atual:"
-    print_status '    export PATH="$HOME/.local/bin:$PATH"'
-    print_status "    Ou reinicie o terminal."
+    print_status "[!] ~/.local/bin/yks-music não está funcional"
+    print_status "    Execute: export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
+# Launch yks-music
 print_status ""
-print_status "Requisitos (instalados automaticamente):"
-print_status "  - yt-dlp: instalado no .venv"
-print_status "  - ffmpeg: detectado/instalado acima"
+print_status "Iniciando yks-music..."
+"$HOME/.local/bin/yks-music"
