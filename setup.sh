@@ -479,7 +479,7 @@ print_status "[*] Python encontrado: $PYTHON_VERSION"
 
 # --- Check for previous installation ---
 if [[ -e "$HOME/.local/bin/yks-music" ]]; then
-    print_status "[*] yks-music já instalado globalmente"
+    print_status "[*] yks-music já instalado globalmente "
     set +e
     read -rp "Deseja reinstalar? (s/N): " -n 1 REPLY
     set -e

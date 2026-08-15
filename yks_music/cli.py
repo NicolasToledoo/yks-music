@@ -959,8 +959,8 @@ def main_menu():
         options = [
             (" ", "Pesquisar Músicas"),
             ("󰇚 ", "Download Direto"),
-            (" ", "Gerenciar Playlists"),
-            (" ", "Listar Músicas"),
+            (" ", "Playlists"),
+            (" ", "Listar todas as Músicas"),
             (" ", "Configurações"),
             (" ", "Ajuda"),
             ("󰈆 ", "Sair"),
