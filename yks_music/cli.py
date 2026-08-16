@@ -19,11 +19,8 @@ from rich.align import Align
 
 from prompt_toolkit import Application
 from prompt_toolkit.layout import Layout, HSplit, Window
-from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.formatted_text import FormattedText
-from prompt_toolkit.styles import Style
 
 from .config import (
     DEFAULT_AUDIO_FORMAT, MUSIC_BASE, SEARCH_PAGE_SIZE, get_music_base,
@@ -71,6 +68,14 @@ def draw_footer(message="Pressione ENTER para continuar..."):
     """Desenha um rodapé com mensagem."""
     console.print("[dim]" + "─" * 45 + "[/dim]")
     input(f"\n{message}")
+
+
+def prompt_with_back(message, **kwargs):
+    """Prompt.ask que retorna None quando o usuário digita 0."""
+    result = Prompt.ask(message + " (ou 0 para voltar)", **kwargs)
+    if result is not None and result.strip() == "0":
+        return None
+    return result
 
 
 def arrow_menu(options, selected=0, page_info=None, allow_pagination=False):
@@ -153,13 +158,10 @@ def arrow_menu(options, selected=0, page_info=None, allow_pagination=False):
     render_menu()
     
     try:
-        buf = Buffer()
         layout = Layout(HSplit([
-            Window(BufferControl(buffer=buf)),
+            Window(FormattedTextControl("")),
         ]))
-        
-        style = Style.from_dict({})
-        app = Application(layout=layout, key_bindings=bindings, style=style, full_screen=False)
+        app = Application(layout=layout, key_bindings=bindings, full_screen=False, mouse_support=False)
         result = app.run()
         
         return result
@@ -238,7 +240,9 @@ def _handle_video_selection(video):
         if playlist_name:
             target_dir = MUSIC_BASE / playlist_name
         else:
-            new_name = Prompt.ask("Nome da nova playlist")
+            new_name = prompt_with_back("Nome da nova playlist")
+            if new_name is None:
+                return
             if new_name:
                 target_dir = MUSIC_BASE / new_name
                 target_dir.mkdir(parents=True, exist_ok=True)
@@ -262,9 +266,12 @@ def search_menu():
     while True:
         if not results:
             if query:
-                new_query = Prompt.ask("Pesquisar", default=query)
+                new_query = prompt_with_back("Pesquisar", default=query)
             else:
-                new_query = Prompt.ask("Pesquisar")
+                new_query = prompt_with_back("Pesquisar")
+            
+            if new_query is None:
+                return
             
             if not new_query.strip():
                 return
@@ -345,9 +352,9 @@ def download_from_search_in_playlist(results, playlist_name):
 def direct_download_menu():
     """Menu para download direto por link."""
     while True:
-        url = Prompt.ask("Cole o link do YouTube (ou 0 para voltar)")
+        url = prompt_with_back("Cole o link do YouTube")
         
-        if url.strip() == "0":
+        if url is None:
             return
         
         if not url.strip():
@@ -376,7 +383,9 @@ def direct_download_menu():
             if playlist_name:
                 target_dir = MUSIC_BASE / playlist_name
             else:
-                new_name = Prompt.ask("Nome da nova playlist")
+                new_name = prompt_with_back("Nome da nova playlist")
+                if new_name is None:
+                    continue
                 if new_name:
                     target_dir = MUSIC_BASE / new_name
                     target_dir.mkdir(parents=True, exist_ok=True)
@@ -414,7 +423,9 @@ def playlist_management_menu():
             return
         
         if idx == 0:
-            name = Prompt.ask("Nome da nova playlist")
+            name = prompt_with_back("Nome da nova playlist")
+            if name is None:
+                continue
             if name:
                 success = create_playlist(name)
                 if success:
@@ -424,9 +435,13 @@ def playlist_management_menu():
                 input("\nPressione ENTER para continuar...")
 
         elif idx == 1:
-            url = Prompt.ask("Cole o link da playlist do YouTube")
+            url = prompt_with_back("Cole o link da playlist do YouTube")
+            if url is None:
+                continue
             if url:
-                name = Prompt.ask("Nome da nova playlist")
+                name = prompt_with_back("Nome da nova playlist")
+                if name is None:
+                    continue
                 if name:
                     target = MUSIC_BASE / name
                     if target.exists():
@@ -458,7 +473,6 @@ def show_playlist_list():
     if not playlists:
         console.print("[yellow]Nenhuma playlist criada.[/yellow]")
         draw_footer("Crie uma playlist usando 'playlist create <nome>'")
-        input("\nPressione ENTER para continuar...")
         return
     
     console.print("[bold yellow] Playlists[/bold yellow]")
@@ -485,7 +499,6 @@ def show_playlist_list():
             console.print(f"\n[bold]{p}[/bold] [dim](vazia)[/dim]")
     
     draw_footer()
-    input("\nPressione ENTER para continuar...")
 
 
 def add_music_to_playlist():
@@ -518,7 +531,9 @@ def add_music_to_playlist():
         return
     
     if add_idx == 0:  # Pesquisar
-        query = Prompt.ask("Digite o termo de pesquisa")
+        query = prompt_with_back("Digite o termo de pesquisa")
+        if query is None:
+            return
         if query:
             results = search_youtube(query, SEARCH_PAGE_SIZE)
             if results:
@@ -528,7 +543,9 @@ def add_music_to_playlist():
                 input("\nPressione ENTER para continuar...")
                 
     elif add_idx == 1:  # Link
-        url = Prompt.ask("Cole o link do YouTube")
+        url = prompt_with_back("Cole o link do YouTube")
+        if url is None:
+            return
         if url and (url.startswith("http://") or url.startswith("https://")):
             target_dir = MUSIC_BASE / selected_playlist
             if is_playlist_url(url):
@@ -639,7 +656,6 @@ def list_music_menu():
             console.print("[dim]" + "─" * 45 + "[/dim]")
         
         draw_footer()
-        input("\nPressione ENTER para continuar...")
 
 
 def settings_menu():
@@ -663,7 +679,9 @@ def settings_menu():
             
         elif idx == 1:  # Formato padrão
             current_fmt = DEFAULT_AUDIO_FORMAT
-            new_fmt = Prompt.ask("Formato de áudio padrão (mp3|m4a|opus)", default=current_fmt)
+            new_fmt = prompt_with_back("Formato de áudio padrão (mp3|m4a|opus)", default=current_fmt)
+            if new_fmt is None:
+                continue
             if new_fmt.lower() in ("mp3", "m4a", "opus", "flac", "wav"):
                 console.print(f"[green]✓ Formato atualizado para: {new_fmt}[/green]")
             else:
@@ -850,7 +868,6 @@ def show_music_folder_info():
     
     console.print("[dim]" + "─" * 45 + "[/dim]")
     draw_footer()
-    input("\nPressione ENTER para continuar...")
 
 
 def check_dependencies():
@@ -889,7 +906,6 @@ def check_dependencies():
     
     console.print("[dim]" + "─" * 45 + "[/dim]")
     draw_footer()
-    input("\nPressione ENTER para continuar...")
 
 
 def show_system_info():
@@ -915,7 +931,6 @@ def show_system_info():
     console.print("[dim]" + "─" * 45 + "[/dim]")
     
     draw_footer()
-    input("\nPressione ENTER para continuar...")
 
 
 def show_help():
@@ -923,34 +938,31 @@ def show_help():
     draw_header("yks-music", "Ajuda")
     
     help_text = """
-[bold cyan]yks-music[/bold cyan] - CLI para baixar músicas do YouTube
-[dim]Uma ferramenta simples e interativa para baixar músicas e playlists.[/dim]
+[bold cyan]yks-music[/bold cyan] - Baixe músicas e playlists do YouTube de forma interativa
+[dim]Navegue pelos menus com o teclado. Tudo é feito por setas e Enter.[/dim]
 
 [bold yellow]   Pesquisar Músicas[/bold yellow]
 Digite o nome da música ou artista quando solicitado.
-Os resultados serão exibidos numerados. Use o número para baixar.
+Os resultados aparecem em uma lista navegável.
+Use [green]↑ ↓[/green] para escolher e [green]Enter[/green] para baixar.
+[dim]← →[/dim] trocam de página quando houver mais resultados.
 
 [bold yellow] 󰇚  Download Direto[/bold yellow]
-Cole qualquer link do YouTube (vídeo ou playlist) para baixar.
+Cole um link do YouTube (vídeo ou playlist) para baixar.
 
-[bold yellow]   Playlists[/bold yellow]
-Criar, deletar e adicionar músicas a playlists organizadas.
+[bold yellow]  Playlists[/bold yellow]
+Crie, liste, adicione músicas e delete playlists organizadas por pastas.
 
-[bold yellow] 󰎘  Comandos Úteis[/bold yellow]
-  1] - Selecionar opção pelo número
-  0] - Voltar/cancelar
-  [ENTER] - Confirmar
-
-[bold green]   Exemplos de uso:[/bold green]
-  search "Imagine Dragons"
-  download https://youtu.be/dQw4w9WgXcQ
-  playlist create "Minhas Favoritas"
-  playlist add "Minhas Favoritas" https://youtu.be/abc123
+[bold yellow] 󰎘  Como navegar nos menus[/bold yellow]
+  [green]↑ ↓[/green]  Mover a seleção
+  [green]Enter[/green]  Selecionar / confirmar
+  [green]Esc[/green]  Voltar / cancelar
+  [green]Ctrl+C / Ctrl+Q[/green]  Sair
+  [green]0[/green]  Voltar ao menu (em qualquer campo de texto)
 """
     console.print(help_text)
     
     draw_footer("Pressione ENTER para voltar ao menu principal")
-    input()
 
 
 def main_menu():
