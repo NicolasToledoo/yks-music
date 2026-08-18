@@ -210,6 +210,11 @@ def show_info_panel(title, content, border_color="cyan"):
     console.print(panel)
 
 
+def _get_spicetify_script(name):
+    """Retorna o caminho completo para um script na pasta referencias."""
+    return Path(__file__).parent.parent / "referencias" / name
+
+
 def _show_video_details(video):
     """Mostra detalhes de um vídeo de forma limpa."""
     console.print(f"[bold cyan]▶ {video['title']}[/bold cyan]")
@@ -246,13 +251,13 @@ def _handle_video_selection(video):
             if new_name:
                 target_dir = MUSIC_BASE / new_name
                 target_dir.mkdir(parents=True, exist_ok=True)
-                console.print(f"[green]✓ Playlist '{new_name}' criada.[/green]")
+                console.print(f"[green]󰄲 Playlist '{new_name}' criada.[/green]")
             else:
                 return
     
     console.print(f"[yellow]Baixando: {video['title']}[/yellow]")
     success = download_video(f"https://youtu.be/{video['id']}", output_dir=target_dir)
-    console.print("[bold green]✅ Concluído![/bold green]" if success else "[bold red]❌ Falha no download.[/bold red]")
+    console.print("[bold green]󰄬 Concluído![/bold green]" if success else "[bold red]󰅖 Falha no download.[/bold red]")
     input("\nPressione ENTER para continuar...")
 
 
@@ -345,7 +350,7 @@ def download_from_search_in_playlist(results, playlist_name):
     
     console.print(f"[yellow]Baixando: {video['title']}[/yellow]")
     success = download_video(url, output_dir=target_dir)
-    console.print("[bold green]✅ Concluído![/bold green]" if success else "[bold red]❌ Falha no download.[/bold red]")
+    console.print("[bold green]󰄬 Concluído![/bold green]" if success else "[bold red]󰅖 Falha no download.[/bold red]")
     input("\nPressione ENTER para continuar...")
 
 
@@ -389,7 +394,7 @@ def direct_download_menu():
                 if new_name:
                     target_dir = MUSIC_BASE / new_name
                     target_dir.mkdir(parents=True, exist_ok=True)
-                    console.print(f"[green]✓ Playlist '{new_name}' criada.[/green]")
+                    console.print(f"[green]󰄲 Playlist '{new_name}' criada.[/green]")
                 else:
                     continue
         
@@ -401,7 +406,7 @@ def direct_download_menu():
             console.print(f"[yellow]Baixando música para: {target_dir}[/yellow]")
             success = download_video(url, output_dir=target_dir)
         
-        console.print("[bold green]✅ Concluído![/bold green]" if success else "[bold red]❌ Falha no download.[/bold red]")
+        console.print("[bold green]󰄬 Concluído![/bold green]" if success else "[bold red]󰅖 Falha no download.[/bold red]")
         input("\nPressione ENTER para continuar...")
         return
 
@@ -410,11 +415,11 @@ def playlist_management_menu():
     """Menu para gerenciar playlists."""
     while True:
         options = [
-            (" ", "Criar Nova Playlist"),
-            (" ", "Importar Playlist pelo Link"),
-            (" ", "Listar Playlists"),
-            (" ", "Adicionar Música a Playlist"),
-            (" ", "Deletar Playlist"),
+            ("󰐕 ", "Criar Nova Playlist"),
+            ("󰋺 ", "Importar Playlist pelo Link"),
+            ("󰗇 ", "Listar Playlists"),
+            ("󰐒 ", "Adicionar Música a Playlist"),
+            ("󰐓 ", "Deletar Playlist"),
         ]
         
         idx = draw_menu("Gerenciar Playlists", options, back_option=True)
@@ -429,7 +434,7 @@ def playlist_management_menu():
             if name:
                 success = create_playlist(name)
                 if success:
-                    console.print("[green]✓ Playlist criada com sucesso![/green]")
+                    console.print("[green]󰄲 Playlist criada com sucesso![/green]")
                 else:
                     console.print("[red]  Falha ao criar playlist.[/red]")
                 input("\nPressione ENTER para continuar...")
@@ -451,7 +456,7 @@ def playlist_management_menu():
                         if success:
                             console.print(f"[yellow]Baixando playlist para: {target}[/yellow]")
                             download_playlist(url, target)
-                            console.print("[green]✓ Playlist criada e baixada com sucesso![/green]")
+                            console.print("[green]󰄲 Playlist criada e baixada com sucesso![/green]")
                 input("\nPressione ENTER para continuar...")
 
         elif idx == 2:
@@ -554,7 +559,7 @@ def add_music_to_playlist():
             else:
                 console.print(f"[yellow]Baixando música para: {target_dir}[/yellow]")
                 success = download_video(url, output_dir=target_dir)
-            console.print("[bold green]✅ Concluído![/bold green]" if success else "[bold red]❌ Falha no download.[/bold red]")
+            console.print("[bold green]󰄬 Concluído![/bold green]" if success else "[bold red]󰅖 Falha no download.[/bold red]")
             input("\nPressione ENTER para continuar...")
         else:
             console.print("[red]URL inválida.[/red]")
@@ -584,7 +589,7 @@ def delete_playlist_menu():
     console.print(f" Músicas: {len(songs)}")
     
     if songs:
-        console.print(f"[red]⚠ A playlist '{selected_playlist}' contém {len(songs)} música(s).[/red]")
+        console.print(f"[red]󰀪 A playlist '{selected_playlist}' contém {len(songs)} música(s).[/red]")
         console.print("[red]Todas as músicas serão perdidas![/red]")
     else:
         console.print(f"[yellow]Playlist '{selected_playlist}' está vazia.[/yellow]")
@@ -592,7 +597,7 @@ def delete_playlist_menu():
     if Confirm.ask(f"[red]Tem certeza que deseja deletar '{selected_playlist}'?[/red]"):
         success = delete_playlist(selected_playlist)
         if success:
-            console.print("[green]✓ Playlist deletada com sucesso![/green]")
+            console.print("[green]󰄲 Playlist deletada com sucesso![/green]")
         else:
             console.print("[red]  Falha ao deletar playlist.[/red]")
         input("\nPressione ENTER para continuar...")
@@ -662,11 +667,11 @@ def settings_menu():
     """Menu de configurações."""
     while True:
         options = [
-            ("󰈀 ", "Pasta de Músicas"),
-            (" ", "Formato Padrão"),
-            (" ", "Cookies do Navegador"),
-            (" ", "Verificar Dependências"),
-            (" ", "Informações do Sistema"),
+            ("󱍙 ", "Pasta de Músicas"),
+            ("󰈤 ", "Formato Padrão"),
+            ("󰆘 ", "Cookies do Navegador"),
+            (" ", "Verificar Dependências"),
+            (" ", "Informações do Sistema"),
         ]
         
         idx = draw_menu("Configurações", options, back_option=True)
@@ -683,7 +688,7 @@ def settings_menu():
             if new_fmt is None:
                 continue
             if new_fmt.lower() in ("mp3", "m4a", "opus", "flac", "wav"):
-                console.print(f"[green]✓ Formato atualizado para: {new_fmt}[/green]")
+                console.print(f"[green]󰄲 Formato atualizado para: {new_fmt}[/green]")
             else:
                 console.print("[red]  Formato não suportado.[/red]")
             input("\nPressione ENTER para continuar...")
@@ -765,7 +770,7 @@ def cookie_settings_menu():
                 options.append(("", f"{browser}  (atual)"))
             else:
                 options.append(("", browser))
-        options.append(("", "🔄 Redetectar automaticamente"))
+        options.append(("", "󰁽 Redetectar automaticamente"))
         
         idx = arrow_menu(options)
         
@@ -800,9 +805,9 @@ def cookie_settings_menu():
                 
                 current_browser = selected_browser
                 current_browser_display = f"{selected_browser} @ {new_path.split(':', 1)[1]}"
-                console.print(f"[green]✓ Navegador alterado: {selected_browser}[/green]")
-                console.print(f"[green]✓ Caminho: {new_path.split(':', 1)[1]}[/green]")
-                console.print(f"[green]✓ Método: {install_method}[/green]")
+                console.print(f"[green]󰄲 Navegador alterado: {selected_browser}[/green]")
+                console.print(f"[green]󰄲 Caminho: {new_path.split(':', 1)[1]}[/green]")
+                console.print(f"[green]󰄲 Método: {install_method}[/green]")
             else:
                 console.print(f"[yellow]! Navegador {selected_browser} não encontrado[/yellow]")
                 # Salvar apenas o nome caso não encontre caminho
@@ -834,8 +839,8 @@ def cookie_settings_menu():
                 save_config(config_data)
                 
                 current_browser_display = f"{current_browser} @ {new_path.split(':', 1)[1]}"
-                console.print(f"[green]✓ Caminho detectado: {new_path.split(':', 1)[1]}[/green]")
-                console.print(f"[green]✓ Método: {install_method}[/green]")
+                console.print(f"[green]󰄲 Caminho detectado: {new_path.split(':', 1)[1]}[/green]")
+                console.print(f"[green]󰄲 Método: {install_method}[/green]")
             else:
                 console.print(f"[yellow]! Navegador {current_browser} não encontrado[/yellow]")
             input("\nPressione ENTER para continuar...")
@@ -849,7 +854,7 @@ def show_music_folder_info():
     console.print("[bold yellow] Informações da Pasta[/bold yellow]")
     console.print("[dim]" + "─" * 45 + "[/dim]")
     console.print(f"  Caminho: [cyan]{MUSIC_BASE}[/cyan]")
-    console.print(f"  Existe: {'[green]✓ Sim[/green]' if MUSIC_BASE.exists() else '[red]✗ Não[/red]'}")
+    console.print(f"  Existe: {'[green]󰄲 Sim[/green]' if MUSIC_BASE.exists() else '[red]󰅖 Não[/red]'}")
     
     if MUSIC_BASE.exists():
         total_files = sum(1 for f in MUSIC_BASE.rglob('*') if f.is_file())
@@ -886,9 +891,9 @@ def check_dependencies():
     for name, cmd in deps.items():
         path = shutil.which(cmd)
         if path:
-            console.print(f"  [green]✓[/green] {name}: {path}")
+            console.print(f"  [green]󰄲[/green] {name}: {path}")
         else:
-            console.print(f"  [red]✗[/red] {name}: Não encontrado")
+            console.print(f"  [red]󰅖[/red] {name}: Não encontrado")
     
     console.print("[dim]" + "─" * 45 + "[/dim]")
     
@@ -900,9 +905,9 @@ def check_dependencies():
         try:
             mod = __import__(dep)
             version = getattr(mod, '__version__', 'instalada')
-            console.print(f"  [green]✓[/green] {dep}: {version}")
+            console.print(f"  [green]󰄲[/green] {dep}: {version}")
         except ImportError:
-            console.print(f"  [red]✗[/red] {dep}: Não instalada")
+            console.print(f"  [red]󰅖[/red] {dep}: Não instalada")
     
     console.print("[dim]" + "─" * 45 + "[/dim]")
     draw_footer()
@@ -965,16 +970,61 @@ Crie, liste, adicione músicas e delete playlists organizadas por pastas.
     draw_footer("Pressione ENTER para voltar ao menu principal")
 
 
+def spicetify_menu():
+    """Menu para instalar ou desinstalar Spotify + Spicetify."""
+    while True:
+        options = [
+            ("󰇚 ", "Instalar Spotify + Spicetify"),
+            ("󰩑 ", "Desinstalar Spotify + Spicetify"),
+        ]
+
+        idx = draw_menu("Spicetify", options, back_option=True)
+
+        if idx is None:
+            return
+
+        if idx == 0:
+            script = _get_spicetify_script("instalar_spicetify.sh")
+            if not script.exists():
+                console.print(f"[red]  Script não encontrado: {script}[/red]")
+                input("\nPressione ENTER para continuar...")
+                continue
+
+            if not Confirm.ask("[yellow]Isso irá instalar o Spotify e o Spicetify no seu sistema. Continuar?[/yellow]"):
+                continue
+
+            draw_header("yks-music", "Instalando Spotify + Spicetify")
+            console.print("[dim]O output do instalação será exibido abaixo:[/dim]\n")
+            subprocess.run(["bash", str(script)])
+
+        elif idx == 1:
+            script = _get_spicetify_script("desinstalar_spotify_spicetify.sh")
+            if not script.exists():
+                console.print(f"[red]  Script não encontrado: {script}[/red]")
+                input("\nPressione ENTER para continuar...")
+                continue
+
+            if not Confirm.ask("[yellow]Isso irá remover o Spicetify e opcionalmente o Spotify. Continuar?[/yellow]"):
+                continue
+
+            draw_header("yks-music", "Desinstalando Spotify + Spicetify")
+            console.print("[dim]O output da desinstalação será exibido abaixo:[/dim]\n")
+            subprocess.run(["bash", str(script)])
+
+        input("\nPressione ENTER para continuar...")
+
+
 def main_menu():
     """Menu principal do yks-music."""
     while True:
         options = [
             (" ", "Pesquisar Músicas"),
             ("󰇚 ", "Download Direto"),
-            (" ", "Playlists"),
-            (" ", "Listar todas as Músicas"),
+            ("󰲹 ", "Playlists"),
+            ("󰲸 ", "Listar todas as Músicas"),
+            ("󰛧 ", "Spicetify"),
             (" ", "Configurações"),
-            (" ", "Ajuda"),
+            ("󰋖 ", "Ajuda"),
             ("󰈆 ", "Sair"),
         ]
         
@@ -996,12 +1046,15 @@ def main_menu():
             list_music_menu()
             
         elif idx == 4:
-            settings_menu()
+            spicetify_menu()
             
         elif idx == 5:
-            show_help()
+            settings_menu()
             
         elif idx == 6:
+            show_help()
+            
+        elif idx == 7:
             # Sair
             console.print("\n[green]Até logo![/green]")
             return
