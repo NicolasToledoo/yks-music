@@ -9,14 +9,13 @@ from typing import List, Optional
 from .config import DEFAULT_AUDIO_FORMAT, YTDLP_CMD, get_cookie_browser_and_path, get_yt_dlp_path
 
 
-def build_audio_opts(format_selector: str = "bestaudio/best") -> List[str]:
+def build_audio_opts(format_selector: str = "bestaudio/best", audio_format: Optional[str] = None, no_convert: bool = False) -> List[str]:
     """Constrói as opções de áudio para yt-dlp, incluindo cookies se disponíveis."""
     browser, cookies_path = get_cookie_browser_and_path()
     
     opts = [
         "-f", format_selector,
         "-x",
-        "--audio-format", "mp3",
         "--audio-quality", "5",
         "--embed-thumbnail",
         "--embed-metadata",
@@ -28,6 +27,9 @@ def build_audio_opts(format_selector: str = "bestaudio/best") -> List[str]:
         "--fragment-retries", "5",
         "--sleep-requests", "0.5",
     ]
+    
+    if audio_format and not no_convert:
+        opts.extend(["--audio-format", audio_format])
     
     if cookies_path:
         opts.extend(["--cookies-from-browser", cookies_path])
@@ -41,12 +43,9 @@ def build_cmd(output_dir: Path, audio_format: Optional[str] = None, no_convert: 
     output_dir.mkdir(parents=True, exist_ok=True)
     out_template = str(output_dir / "%(title)s.%(ext)s")
     
-    opts = build_audio_opts(format_selector)
+    opts = build_audio_opts(format_selector, audio_format, no_convert)
     
     cmd = [get_yt_dlp_path(), "-o", out_template] + opts
-    
-    if audio_format and no_convert:
-        cmd.extend(["--audio-format", audio_format])
     
     return cmd
 
@@ -68,11 +67,20 @@ def download_video(url: str, output_dir: Path, audio_format: str = DEFAULT_AUDIO
     Tenta o seletor principal e, se falhar por formato indisponível,
     tenta fallbacks progressivos.
     """
-    attempts = [
-        build_cmd(output_dir, audio_format if no_convert else None, no_convert, "bestaudio/best"),
-        build_cmd(output_dir, audio_format if no_convert else None, no_convert, "best"),
-        build_cmd(output_dir, audio_format if no_convert else None, no_convert, "b"),
-    ]
+    is_shorts = "/shorts/" in url.lower()
+    
+    if is_shorts:
+        attempts = [
+            build_cmd(output_dir, audio_format if no_convert else None, no_convert, "best"),
+            build_cmd(output_dir, audio_format if no_convert else None, no_convert, "bestaudio/best"),
+            build_cmd(output_dir, audio_format if no_convert else None, no_convert, "b"),
+        ]
+    else:
+        attempts = [
+            build_cmd(output_dir, audio_format if no_convert else None, no_convert, "bestaudio/best"),
+            build_cmd(output_dir, audio_format if no_convert else None, no_convert, "best"),
+            build_cmd(output_dir, audio_format if no_convert else None, no_convert, "b"),
+        ]
 
     for i, cmd in enumerate(attempts, start=1):
         if _run(cmd, url):
