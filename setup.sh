@@ -4,7 +4,9 @@
 # Installs locally in .venv, creates global shortcut in ~/.local/bin/
 # Supports: Ubuntu/Debian, Arch Linux, macOS, and other Linux distros
 #
-set -euo pipefail
+# Não usamos 'set -e' para não abortar o script em falhas não-críticas
+# (ex.: pip/venv/yt-dlp). Falhas são registradas em $SETUP_LOG.
+set -o pipefail
 umask 022
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,25 +75,15 @@ clear_output() {
     printf "\033[%d;1H" "$((BANNER_LINES + 1))"
 }
 
-# --- Trap de erro para limpeza ---
-cleanup_on_error() {
-    print_status ""
-    print_status "[!] Ocorreu um erro durante a instalação."
-    print_status "    Verifique o log: $SETUP_LOG"
-    print_status "[!] O .venv pode estar em estado inconsistente."
-    print_status "    Remova a pasta .venv e tente novamente."
-}
-trap cleanup_on_error ERR
-
-# --- Executa comando redirecionando output para log ---
+# --- Executa comando redirecionando output para log (nunca aborta) ---
 run_cmd() {
     local msg="$1"
     shift
     print_status "$msg"
     if ! "$@" >> "$SETUP_LOG" 2>&1; then
-        print_status "[!] Falhou. Verifique o log: $SETUP_LOG"
-        return 1
+        print_status "[!] Falhou (não fatal). Verifique: $SETUP_LOG"
     fi
+    return 0
 }
 
 # --- Detect OS ---
@@ -110,6 +102,10 @@ detect_os() {
         echo "opensuse"
     elif command -v apk &>/dev/null; then
         echo "alpine"
+    elif command -v xbps-install &>/dev/null; then
+        echo "void"
+    elif command -v eopkg &>/dev/null; then
+        echo "solus"
     else
         echo "unknown"
     fi
@@ -252,6 +248,12 @@ install_ffmpeg() {
         alpine)
             run_cmd "[*] Instalando ffmpeg..." apk add --no-cache ffmpeg
             ;;
+        void)
+            run_cmd "[*] Instalando ffmpeg..." sudo xbps-install -S -y ffmpeg
+            ;;
+        solus)
+            run_cmd "[*] Instalando ffmpeg..." sudo eopkg install -y ffmpeg
+            ;;
         macos)
             if command -v brew &>/dev/null; then
                 run_cmd "[*] Instalando ffmpeg..." brew install ffmpeg
@@ -342,6 +344,16 @@ install_yt_dlp() {
                 install_ok=1
             fi
             ;;
+        void)
+            if sudo xbps-install -S -y yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
+        solus)
+            if sudo eopkg install -y yt-dlp >> "$SETUP_LOG" 2>&1; then
+                install_ok=1
+            fi
+            ;;
         macos)
             if command -v brew &>/dev/null; then
                 if brew install yt-dlp >> "$SETUP_LOG" 2>&1; then
@@ -420,8 +432,12 @@ clear_output
 OS="$(detect_os)"
 print_status "[*] Sistema detectado: $OS"
 
-# --- Check Python ---
-if ! command -v python3 &>/dev/null; then
+# --- Check Python (prefer python3, fallback python) ---
+if command -v python3 &>/dev/null; then
+    PYTHON=python3
+elif command -v python &>/dev/null; then
+    PYTHON=python
+else
     print_status "[!] Python 3 não encontrado. Instalando..."
     case "$OS" in
         debian)
@@ -443,6 +459,12 @@ if ! command -v python3 &>/dev/null; then
         alpine)
             run_cmd "[*] Instalando Python 3..." apk add --no-cache python3 py3-pip
             ;;
+        void)
+            run_cmd "[*] Instalando Python 3..." sudo xbps-install -S -y python3 python3-pip
+            ;;
+        solus)
+            run_cmd "[*] Instalando Python 3..." sudo eopkg install -y python3
+            ;;
         macos)
             if ! command -v brew &>/dev/null; then
                 print_status "[*] Homebrew não encontrado. Instalando..."
@@ -451,44 +473,42 @@ if ! command -v python3 &>/dev/null; then
             run_cmd "[*] Instalando Python 3..." brew install python
             ;;
         *)
-            if command -v python3 &>/dev/null; then
-                print_status "[*] Python 3 já instalado: $(command -v python3)"
-            else
-                print_status "[!] Gerenciador de pacotes não detectado."
-                print_status "    Instale Python 3 manualmente: https://www.python.org/downloads/"
-                print_status "    Exemplos para distros não listadas:"
-                print_status "      Void Linux:    sudo xbps-install -S python3 python3-pip"
-                print_status "      NixOS:         nix-env -iA nixpkgs.python3"
-                print_status "      Gentoo:        sudo emerge dev-lang/python"
-                print_status "      Solus:         sudo eopkg install python3"
-                print_status ""
-                read -rp "    Pressione ENTER após instalar Python 3, ou Ctrl+C para abortar: " -n 1 REPLY_MANUAL
-                echo
-                if ! command -v python3 &>/dev/null; then
-                    print_status "[!] Python 3 ainda não encontrado. Abortando."
-                    exit 1
-                fi
+            print_status "[!] Gerenciador de pacotes não detectado."
+            print_status "    Instale Python 3 manualmente: https://www.python.org/downloads/"
+            print_status "    Exemplos para distros não listadas:"
+            print_status "      Void Linux:    sudo xbps-install -S python3 python3-pip"
+            print_status "      NixOS:         nix-env -iA nixpkgs.python3"
+            print_status "      Gentoo:        sudo emerge dev-lang/python"
+            print_status "      Solus:         sudo eopkg install python3"
+            print_status ""
+            read -rp "    Pressione ENTER após instalar Python 3, ou Ctrl+C para abortar: " -n 1 REPLY_MANUAL
+            echo
+            if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
+                print_status "[!] Python 3 ainda não encontrado. Abortando."
+                exit 1
             fi
             ;;
     esac
+    if command -v python3 &>/dev/null; then
+        PYTHON=python3
+    else
+        PYTHON=python
+    fi
 fi
 
-PYTHON="${PYTHON:-python3}"
 PYTHON_VERSION="$($PYTHON --version 2>&1)"
-print_status "[*] Python encontrado: $PYTHON_VERSION"
+print_status "[*] Python encontrado: $PYTHON ($PYTHON_VERSION)"
 
 # --- Check for previous installation ---
-if [[ -e "$HOME/.local/bin/yks-music" ]]; then
-    print_status "[*] yks-music já instalado globalmente "
-    set +e
+if [[ -e "$HOME/.local/bin/yks-music" ]] || [[ -e "/usr/local/bin/yks-music" ]]; then
+    print_status "[*] yks-music já instalado globalmente"
     read -rp "Deseja reinstalar? (s/N): " -n 1 REPLY
-    set -e
     echo
     if [[ ! $REPLY =~ ^[Ss]$ ]]; then
         print_status "Instalação cancelada."
         exit 0
     fi
-    rm -f "$HOME/.local/bin/yks-music"
+    rm -f "$HOME/.local/bin/yks-music" "/usr/local/bin/yks-music"
 fi
 
 # --- Install ffmpeg only if missing ---
@@ -498,17 +518,58 @@ else
     print_status "[*] ffmpeg já instalado: $(command -v ffmpeg)"
 fi
 
-# --- Create virtual environment ---
+# --- Create virtual environment (with retry + ensure venv tooling) ---
 VENV_DIR="$SCRIPT_DIR/.venv"
+
+ensure_venv() {
+    if "$PYTHON" -m venv "$VENV_DIR" >> "$SETUP_LOG" 2>&1; then
+        return 0
+    fi
+    print_status "[!] Falha ao criar venv; tentando instalar dependências de venv..."
+    case "$OS" in
+        debian|unknown)
+            sudo apt-get update >> "$SETUP_LOG" 2>&1
+            sudo apt-get install -y python3-venv python3-pip >> "$SETUP_LOG" 2>&1 || true
+            ;;
+        arch)    sudo pacman -Sy --noconfirm python-pip >> "$SETUP_LOG" 2>&1 || true ;;
+        fedora|rhel) sudo dnf install -y python3-pip >> "$SETUP_LOG" 2>&1 || true ;;
+        opensuse) sudo zypper install -y python3-pip >> "$SETUP_LOG" 2>&1 || true ;;
+        alpine)  sudo apk add --no-cache py3-pip >> "$SETUP_LOG" 2>&1 || true ;;
+        void)    sudo xbps-install -S -y python3-pip >> "$SETUP_LOG" 2>&1 || true ;;
+        solus)   sudo eopkg install -y python3-pip >> "$SETUP_LOG" 2>&1 || true ;;
+        macos)   brew install python >> "$SETUP_LOG" 2>&1 || true ;;
+    esac
+    if "$PYTHON" -m venv "$VENV_DIR" >> "$SETUP_LOG" 2>&1; then
+        return 0
+    fi
+    print_status "[!] Não foi possível criar o virtual environment."
+    print_status "    Verifique o log: $SETUP_LOG"
+    exit 1
+}
+
 if [[ ! -d "$VENV_DIR" ]]; then
-    run_cmd "[*] Criando virtual environment..." "$PYTHON" -m venv "$VENV_DIR"
+    print_status "[*] Criando virtual environment..."
+    ensure_venv
 fi
 
 # --- Activate venv and install Python deps ---
 source "$VENV_DIR/bin/activate"
-run_cmd "[*] Atualizando pip..." pip install --upgrade pip
-run_cmd "[*] Instalando yks-music..." pip install -e "$SCRIPT_DIR"
-install_yt_dlp
+
+print_status "[*] Atualizando pip..."
+pip install --upgrade pip >> "$SETUP_LOG" 2>&1 || print_status "[!] Falha ao atualizar pip (continuando)."
+
+print_status "[*] Instalando yks-music..."
+if pip install -e "$SCRIPT_DIR" >> "$SETUP_LOG" 2>&1; then
+    print_status "[✓] yks-music instalado (editable)."
+elif pip install --no-build-isolation -e "$SCRIPT_DIR" >> "$SETUP_LOG" 2>&1; then
+    print_status "[✓] yks-music instalado (sem build isolation)."
+elif pip install "$SCRIPT_DIR" >> "$SETUP_LOG" 2>&1; then
+    print_status "[✓] yks-music instalado."
+else
+    print_status "[!] Falha ao instalar yks-music. Verifique: $SETUP_LOG"
+fi
+
+install_yt_dlp || print_status "[!] yt-dlp não instalado; o app tentará usar o do venv se disponível."
 
 # --- Configurar Cookie do Navegador ---
 print_status ""
@@ -524,7 +585,7 @@ print_status ""
 
 detect_cookie_path() {
     local browser="$1"
-    python3 -c "
+    "$PYTHON" -c "
 import sys
 sys.path.insert(0, '$SCRIPT_DIR')
 from yks_music.detector_cookie import detect_browser_path
@@ -535,7 +596,7 @@ print(json.dumps(result) if result else 'null')
 }
 
 detect_any_browser_path() {
-    python3 -c "
+    "$PYTHON" -c "
 import sys
 sys.path.insert(0, '$SCRIPT_DIR')
 from yks_music.detector_cookie import detect_any_browser
@@ -664,16 +725,40 @@ fi
 
 print_status "[✓] Navegador configurado: $BROWSER"
 
-# --- Create global shortcut ---
-print_status "[*] Atualizando atalho global..."
+# --- Create global launchers (PATH-independent) ---
+print_status "[*] Criando atalhos globais..."
 VENV_PATH="$SCRIPT_DIR/.venv"
-if [ -d "$VENV_PATH" ]; then
-    cat > "$HOME/.local/bin/yks-music" << EOF
+VENV_PY="$VENV_PATH/bin/python3"
+
+create_launcher() {
+    # $1 = destination path
+    local dest="$1"
+    mkdir -p "$(dirname "$dest")"
+    cat > "$dest" << EOF
 #!/usr/bin/env bash
-exec "$VENV_PATH/bin/yks-music" "\$@"
+exec "$VENV_PY" -m yks_music.cli "\$@"
 EOF
-    chmod +x "$HOME/.local/bin/yks-music"
-    print_status "[✓] Atalho atualizado: ~/.local/bin/yks-music"
+    chmod +x "$dest"
+}
+
+# 1) ~/.local/bin (fallback, sempre gravável pelo usuário)
+create_launcher "$HOME/.local/bin/yks-music"
+print_status "[✓] Atalho criado: ~/.local/bin/yks-music"
+
+# 2) /usr/local/bin (PRIMARY: está no PATH por padrão em todas as distros e macOS,
+#    em shells interativos, de login e em launchers do Hyprland)
+if [ -w /usr/local/bin ] || (mkdir -p /usr/local/bin 2>/dev/null && [ -w /usr/local/bin ]); then
+    create_launcher "/usr/local/bin/yks-music"
+    print_status "[✓] Atalho criado: /usr/local/bin/yks-music"
+elif command -v sudo &>/dev/null; then
+    sudo tee "/usr/local/bin/yks-music" >/dev/null << EOF
+#!/usr/bin/env bash
+exec "$VENV_PY" -m yks_music.cli "\$@"
+EOF
+    sudo chmod +x "/usr/local/bin/yks-music"
+    print_status "[✓] Atalho criado: /usr/local/bin/yks-music (sudo)"
+else
+    print_status "[!] Sem escrita em /usr/local/bin; o comando ficará em ~/.local/bin"
 fi
 
 # --- Detect default shell ---
@@ -739,14 +824,16 @@ configure_shell_path() {
     fi
 }
 
-# Configure PATH for each installed shell
+# Configure PATH for each installed shell (reforço; o principal é /usr/local/bin)
 configure_shell_path "bash" "$HOME/.bashrc" 'export PATH="$HOME/.local/bin:$PATH"'
+configure_shell_path "bash" "$HOME/.bash_profile" 'export PATH="$HOME/.local/bin:$PATH"'
+configure_shell_path "bash" "$HOME/.profile" 'export PATH="$HOME/.local/bin:$PATH"'
 configure_shell_path "zsh" "$HOME/.zshrc" 'export PATH="$HOME/.local/bin:$PATH"'
+configure_shell_path "zsh" "$HOME/.zprofile" 'export PATH="$HOME/.local/bin:$PATH"'
 configure_shell_path "fish" "$HOME/.config/fish/config.fish" 'fish_add_path ~/.local/bin'
 
 # Aplica ~/.local/bin ao fish IMEDIATAMENTE (variável universal fish_user_paths) e
-# de forma persistente, sem exigir reinício da sessão de fish. Isso corrige o
-# erro "fish: Unknown command: yks-music" no Hyprland + fish.
+# de forma persistente, sem exigir reinício da sessão de fish.
 if command -v fish &>/dev/null; then
     fish -c "fish_add_path $HOME/.local/bin" 2>/dev/null || \
     fish -c "set -Ua fish_user_paths $HOME/.local/bin" 2>/dev/null || true
@@ -801,29 +888,35 @@ print_status "  Instalação Concluída!"
 print_status "========================================="
 print_status ""
 print_status "[✓] yks-music instalado com sucesso!"
-print_status "[✓] Comando disponível: ~/.local/bin/yks-music"
+print_status "[✓] Comando disponível em: /usr/local/bin/yks-music e ~/.local/bin/yks-music"
 
 # Verificar atalho funcional
-if command -v fish &>/dev/null && fish -c 'command -v yks-music' >/dev/null 2>&1; then
-    print_status "[✓] yks-music disponível no fish (sessão atual)."
-elif command -v yks-music >/dev/null 2>&1; then
-    print_status "[✓] yks-music disponível no PATH atual."
+if command -v yks-music >/dev/null 2>&1; then
+    print_status "[✓] yks-music disponível no PATH atual: $(command -v yks-music)"
+elif [ -x "/usr/local/bin/yks-music" ]; then
+    print_status "[✓] Atalho criado em /usr/local/bin/yks-music."
+    print_status "    Abra um NOVO terminal e digite: yks-music"
 elif [ -x "$HOME/.local/bin/yks-music" ]; then
-    print_status "[✓] Atalho ~/.local/bin/yks-music criado."
-    print_status "    Reinicie o terminal (ou rode: fish -c 'fish_add_path \$HOME/.local/bin')"
+    print_status "[✓] Atalho criado em ~/.local/bin/yks-music."
+    print_status "    Reinicie o terminal ou rode: export PATH=\"\$HOME/.local/bin:\$PATH\""
     print_status "    e digite: yks-music"
 else
-    print_status "[!] ~/.local/bin/yks-music não está funcional"
-    print_status "    Execute: export PATH=\"\$HOME/.local/bin:\$PATH\""
+    print_status "[!] Atalho não está funcional. Verifique: $SETUP_LOG"
+fi
+
+if command -v fish &>/dev/null && fish -c 'command -v yks-music' >/dev/null 2>&1; then
+    print_status "[✓] yks-music disponível no fish (nova sessão)."
 fi
 
 # Launch yks-music
 print_status ""
 print_status "Iniciando yks-music..."
-if [ -x "$VENV_PATH/bin/yks-music" ]; then
-    "$VENV_PATH/bin/yks-music"
+if [ -x "$VENV_PATH/bin/python3" ]; then
+    "$VENV_PATH/bin/python3" -m yks_music.cli
 elif [ -x "$HOME/.local/bin/yks-music" ]; then
     "$HOME/.local/bin/yks-music"
+elif [ -x "/usr/local/bin/yks-music" ]; then
+    "/usr/local/bin/yks-music"
 else
     print_status "[!] Não foi possível iniciar o yks-music automaticamente."
     print_status "    Reinicie o terminal e digite: yks-music"
