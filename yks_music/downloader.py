@@ -97,7 +97,7 @@ def download_playlist(url: str, output_dir: Path, audio_format: str = DEFAULT_AU
     """
     Baixa uma playlist inteira do YouTube.
     """
-    cmd = build_cmd(output_dir) + ["--yes-playlist", url]
+    cmd = build_cmd(output_dir, audio_format) + ["--yes-playlist", url]
 
     try:
         subprocess.run(cmd, check=True)

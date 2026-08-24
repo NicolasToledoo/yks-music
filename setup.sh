@@ -569,6 +569,15 @@ else
     print_status "[!] Falha ao instalar yks-music. Verifique: $SETUP_LOG"
 fi
 
+print_status "[*] Instalando dependências de download (yt-dlp, mutagen, pillow)..."
+if pip install yt-dlp mutagen pillow >> "$SETUP_LOG" 2>&1; then
+    print_status "[✓] yt-dlp + mutagen + pillow instalados no .venv"
+elif pip install --break-system-packages yt-dlp mutagen pillow >> "$SETUP_LOG" 2>&1; then
+    print_status "[✓] yt-dlp + mutagen + pillow instalados no .venv (--break-system-packages)"
+else
+    print_status "[!] Falha ao instalar deps de download. Verifique: $SETUP_LOG"
+fi
+
 install_yt_dlp || print_status "[!] yt-dlp não instalado; o app tentará usar o do venv se disponível."
 
 # --- Configurar Cookie do Navegador ---
@@ -736,6 +745,7 @@ create_launcher() {
     mkdir -p "$(dirname "$dest")"
     cat > "$dest" << EOF
 #!/usr/bin/env bash
+export PATH="$VENV_PATH/bin:\$PATH"
 exec "$VENV_PY" -m yks_music.cli "\$@"
 EOF
     chmod +x "$dest"
@@ -753,6 +763,7 @@ if [ -w /usr/local/bin ] || (mkdir -p /usr/local/bin 2>/dev/null && [ -w /usr/lo
 elif command -v sudo &>/dev/null; then
     sudo tee "/usr/local/bin/yks-music" >/dev/null << EOF
 #!/usr/bin/env bash
+export PATH="$VENV_PATH/bin:\$PATH"
 exec "$VENV_PY" -m yks_music.cli "\$@"
 EOF
     sudo chmod +x "/usr/local/bin/yks-music"

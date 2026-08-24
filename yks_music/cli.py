@@ -895,7 +895,7 @@ def check_dependencies():
     console.print("\n[bold yellow] Dependências Python (instaladas no .venv)[/bold yellow]")
     console.print("[dim]" + "─" * 45 + "[/dim]")
     
-    python_deps = ["rich", "pyfiglet"]
+    python_deps = ["rich", "pyfiglet", "yt_dlp", "mutagen", "PIL"]
     for dep in python_deps:
         try:
             mod = __import__(dep)
