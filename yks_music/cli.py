@@ -7,7 +7,6 @@ import os
 import sys
 import shlex
 import subprocess
-from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -31,6 +30,7 @@ from .playlist_manager import add_to_playlist, create_playlist, delete_playlist,
 from .search import search_youtube
 from .utils import ensure_base_dir, get_audio_files, get_playlists, is_playlist_url
 from .uninstaller import perform_uninstall
+from .spicetify import install_spotify_spicetify, uninstall_spotify_spicetify
 
 console = Console()
 
@@ -208,11 +208,6 @@ def show_info_panel(title, content, border_color="cyan"):
         padding=(1, 2)
     )
     console.print(panel)
-
-
-def _get_spicetify_script(name):
-    """Retorna o caminho completo para um script na pasta referencias."""
-    return Path(__file__).parent.parent / "referencias" / name
 
 
 def _show_video_details(video):
@@ -984,32 +979,20 @@ def spicetify_menu():
             return
 
         if idx == 0:
-            script = _get_spicetify_script("instalar_spicetify.sh")
-            if not script.exists():
-                console.print(f"[red]  Script não encontrado: {script}[/red]")
-                input("\nPressione ENTER para continuar...")
-                continue
-
             if not Confirm.ask("[yellow]Isso irá instalar o Spotify e o Spicetify no seu sistema. Continuar?[/yellow]"):
                 continue
 
             draw_header("yks-music", "Instalando Spotify + Spicetify")
-            console.print("[dim]O output do instalação será exibido abaixo:[/dim]\n")
-            subprocess.run(["bash", str(script)])
+            console.print("[dim]O output da instalação será exibido abaixo:[/dim]\n")
+            install_spotify_spicetify()
 
         elif idx == 1:
-            script = _get_spicetify_script("desinstalar_spotify_spicetify.sh")
-            if not script.exists():
-                console.print(f"[red]  Script não encontrado: {script}[/red]")
-                input("\nPressione ENTER para continuar...")
-                continue
-
             if not Confirm.ask("[yellow]Isso irá remover o Spicetify e opcionalmente o Spotify. Continuar?[/yellow]"):
                 continue
 
             draw_header("yks-music", "Desinstalando Spotify + Spicetify")
             console.print("[dim]O output da desinstalação será exibido abaixo:[/dim]\n")
-            subprocess.run(["bash", str(script)])
+            uninstall_spotify_spicetify()
 
         input("\nPressione ENTER para continuar...")
 
