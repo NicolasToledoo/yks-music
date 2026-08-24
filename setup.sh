@@ -744,6 +744,17 @@ configure_shell_path "bash" "$HOME/.bashrc" 'export PATH="$HOME/.local/bin:$PATH
 configure_shell_path "zsh" "$HOME/.zshrc" 'export PATH="$HOME/.local/bin:$PATH"'
 configure_shell_path "fish" "$HOME/.config/fish/config.fish" 'fish_add_path ~/.local/bin'
 
+# Aplica ~/.local/bin ao fish IMEDIATAMENTE (variável universal fish_user_paths) e
+# de forma persistente, sem exigir reinício da sessão de fish. Isso corrige o
+# erro "fish: Unknown command: yks-music" no Hyprland + fish.
+if command -v fish &>/dev/null; then
+    fish -c "fish_add_path $HOME/.local/bin" 2>/dev/null || \
+    fish -c "set -Ua fish_user_paths $HOME/.local/bin" 2>/dev/null || true
+fi
+
+# Garante que esta própria sessão de bash também enxergue o binário.
+export PATH="$HOME/.local/bin:$PATH"
+
 # --- Verify installation ---
 print_status ""
 print_status "========================================="
@@ -793,8 +804,14 @@ print_status "[✓] yks-music instalado com sucesso!"
 print_status "[✓] Comando disponível: ~/.local/bin/yks-music"
 
 # Verificar atalho funcional
-if [ -x "$HOME/.local/bin/yks-music" ]; then
-    print_status "[✓] Verificação: OK"
+if command -v fish &>/dev/null && fish -c 'command -v yks-music' >/dev/null 2>&1; then
+    print_status "[✓] yks-music disponível no fish (sessão atual)."
+elif command -v yks-music >/dev/null 2>&1; then
+    print_status "[✓] yks-music disponível no PATH atual."
+elif [ -x "$HOME/.local/bin/yks-music" ]; then
+    print_status "[✓] Atalho ~/.local/bin/yks-music criado."
+    print_status "    Reinicie o terminal (ou rode: fish -c 'fish_add_path \$HOME/.local/bin')"
+    print_status "    e digite: yks-music"
 else
     print_status "[!] ~/.local/bin/yks-music não está funcional"
     print_status "    Execute: export PATH=\"\$HOME/.local/bin:\$PATH\""
@@ -803,4 +820,11 @@ fi
 # Launch yks-music
 print_status ""
 print_status "Iniciando yks-music..."
-"$HOME/.local/bin/yks-music"
+if [ -x "$VENV_PATH/bin/yks-music" ]; then
+    "$VENV_PATH/bin/yks-music"
+elif [ -x "$HOME/.local/bin/yks-music" ]; then
+    "$HOME/.local/bin/yks-music"
+else
+    print_status "[!] Não foi possível iniciar o yks-music automaticamente."
+    print_status "    Reinicie o terminal e digite: yks-music"
+fi
